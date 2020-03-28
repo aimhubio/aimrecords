@@ -1,11 +1,14 @@
 # AimRecords
 
-AimRecords is a record-oriented data format which utilizes Protocol Buffers.
+AimRecords is a record-oriented data format which utilizes Protocol Buffers. 
+It is directory oriented which means each directory represents a single object.
 
 ### Specifications
 
-- [Specification of records file format](records_file_format.md)
-- [Specification of records bucket format](records_bucket_format.md)
+- [Specification of directory format](records_dir_format.md)
+- [Specification of data file format](data_file_format.md)
+- [Specification of records offset format](records_offset_format.md)
+- [Specification of buckets offset format](buckets_offset_format.md)
 
 ---
 
