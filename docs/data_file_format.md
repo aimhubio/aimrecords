@@ -4,7 +4,7 @@ A bucket is a collection of consecutive records/events that
 are optionally compressed together. Buckets are intended to be O(MB)-sized,
 i.e. large enough for efficient compression and optimal for fast decompression.
 
-## Bucket Contents
+### Bucket Contents
 The bucket consist of an optionally compressed set of consecutive protobuf messages.
 
 ### Compression
