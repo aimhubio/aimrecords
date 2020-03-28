@@ -11,7 +11,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 # Package meta-data.
 NAME = 'aimrecords'
-DESCRIPTION = 'An event-oriented data format which utilizes Protocol Buffers'
+DESCRIPTION = 'A record-oriented data format which utilizes Protocol Buffers'
 VERSION = __version__
 REQUIRES_PYTHON = '>=3.5.2'
 
