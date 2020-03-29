@@ -1,2 +1,4 @@
-protobuf==3.0.0
+protobuf==3.11.3
 six==1.14.0
+pytest==5.4.1
+ipdb==0.13.2
