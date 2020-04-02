@@ -1,6 +1,6 @@
 import os
 
-from .consts import (
+from aimrecords.artifact_storage.consts import (
     ARTIFACT_OFFSET_SIZE,
     ARTIFACT_LEN_SIZE,
     BUCKET_OFFSET_SIZE,
@@ -10,7 +10,7 @@ from .consts import (
     BUCKETS_NUM,
 )
 
-from .utils import (
+from aimrecords.artifact_storage.utils import (
     write_metadata,
     get_bucket_offsets_fname,
     get_data_fname,

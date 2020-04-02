@@ -1,4 +1,4 @@
-from .consts import (
+from aimrecords.artifact_storage.consts import (
     ARTIFACT_OFFSET_SIZE,
     BUCKET_OFFSET_SIZE,
     ARTIFACTS_NUM_SIZE,
@@ -8,7 +8,7 @@ from .consts import (
     COMPRESSION,
 )
 
-from .utils import (
+from aimrecords.artifact_storage.utils import (
     read_metadata,
     get_data_fname,
     get_bucket_offsets_fname,
