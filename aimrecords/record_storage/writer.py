@@ -6,6 +6,7 @@ from aimrecords.record_storage.consts import (
     RECORD_LEN_SIZE,
     BUCKET_OFFSET_SIZE,
     RECORDS_NUM_SIZE,
+    BUCKET_SIZE_KB,
     ENDIANNESS,
     RECORDS_NUM,
     BUCKETS_NUM,
@@ -86,8 +87,7 @@ class Writer(object):
         self.current_bucket_file.flush()
         self.record_offsets_file.flush()
 
-        # TODO: do this a bit smarter :))
-        if self.records_num % 1500 == 0:
+        if self._current_bucket_overflow():
             self._finalize_current_bucket()
 
     def finalize(self):
@@ -117,6 +117,9 @@ class Writer(object):
 
     def exists(self):
         return os.path.isdir(self.path)
+
+    def _current_bucket_overflow(self):
+        return self.current_bucket_file.tell() / 1024 > BUCKET_SIZE_KB
 
     def _finalize_current_bucket(self):
         current_bucket_offset = self.current_data_file.tell()
