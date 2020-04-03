@@ -1,4 +1,5 @@
 import os
+from shutil import rmtree
 
 from aimrecords.record_storage.consts import (
     RECORD_OFFSET_SIZE,
@@ -12,6 +13,8 @@ from aimrecords.record_storage.consts import (
 
 from aimrecords.record_storage.utils import (
     write_metadata,
+    read_metadata,
+    metadata_exist,
     get_bucket_offsets_fname,
     get_data_fname,
     get_record_offsets_fname,
@@ -19,20 +22,49 @@ from aimrecords.record_storage.utils import (
 
 
 class Writer(object):
-    def __init__(self, path: str):
-        self.data_version = '0'
-        self.compression = None
-        self.data_chunks_num = 0
+    WRITING_MODE = 'w'
+    APPENDING_MODE = 'a'
+    MODES = (WRITING_MODE, APPENDING_MODE,)
+    DEFAULT_MODE = APPENDING_MODE
 
-        os.mkdir(path)
-
+    def __init__(self, path: str, mode=DEFAULT_MODE):
         self.path = path
-        self.buckets_num = 0
-        self.records_num = 0
-        self.record_offsets_file = open(get_record_offsets_fname(self.path), 'wb')
-        self.bucket_offsets_file = open(get_bucket_offsets_fname(self.path), 'wb')
-        self.current_data_file = open(get_data_fname(self.path), 'wb')
-        self.current_bucket_file = open(self._current_bucket_fname(), 'wb')
+        assert mode in self.MODES
+
+        if mode == self.WRITING_MODE or not metadata_exist(self.path):
+            self.data_version = '0'
+            self.compression = None
+            self.data_chunks_num = 0
+            self.buckets_num = 0
+            self.records_num = 0
+        elif mode == self.APPENDING_MODE:
+            # TODO: check data version compatibility
+            meta = read_metadata(self.path)
+            self.data_version = meta.get('data_version')
+            self.compression = meta.get('compression')
+            self.data_chunks_num = meta.get('data_chunks_num')
+            self.buckets_num = meta.get(BUCKETS_NUM)
+            self.records_num = meta.get(RECORDS_NUM)
+
+        if mode == self.WRITING_MODE and self.exists():
+            rmtree(self.path)
+            os.mkdir(self.path)
+        elif not self.exists():
+            os.mkdir(self.path)
+
+        file_open_mode = '{}b'.format(mode)
+
+        (
+            self.record_offsets_file,
+            self.bucket_offsets_file,
+            self.current_data_file,
+            self.current_bucket_file,
+        ) = (
+            open(get_record_offsets_fname(self.path), file_open_mode),
+            open(get_bucket_offsets_fname(self.path), file_open_mode),
+            open(get_data_fname(self.path), file_open_mode),
+            open(self._current_bucket_fname(), file_open_mode),
+        )
 
     def __enter__(self):
         return self
@@ -82,6 +114,9 @@ class Writer(object):
         assert self.current_bucket_file.tell() == 0
         self.current_bucket_file.close()
         os.remove(self._current_bucket_fname())
+
+    def exists(self):
+        return os.path.isdir(self.path)
 
     def _finalize_current_bucket(self):
         current_bucket_offset = self.current_data_file.tell()

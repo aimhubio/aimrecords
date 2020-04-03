@@ -3,7 +3,7 @@ import tempfile
 from aimrecords import Storage
 
 
-class TestBasicStuff(object):
+class TestMulitpleArtifacts(object):
     def test_simple_int(self):
         len = 1000
 

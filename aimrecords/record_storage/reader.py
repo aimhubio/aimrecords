@@ -1,6 +1,7 @@
 from typing import Union, Tuple
 
 from aimrecords.record_storage.consts import (
+    RECORD_LEN_SIZE,
     RECORD_OFFSET_SIZE,
     BUCKET_OFFSET_SIZE,
     RECORDS_NUM_SIZE,
@@ -22,6 +23,7 @@ class Reader:
     def __init__(self, path: str):
         self.path = path
         self.metadata = read_metadata(path)
+        # TODO: check data version compatibility
         self._validate()
 
         assert self.metadata[COMPRESSION] is None
@@ -32,7 +34,7 @@ class Reader:
 
         self._iter = None
 
-    def __getitem__(self, item: Union[int, Tuple[int, ...], slice]):
+    def __getitem__(self, item: Union[int, Tuple[int, ...], slice]) -> iter:
         if isinstance(item, int):
             self._iter = iter((item,))
         elif isinstance(item, tuple):
@@ -51,13 +53,16 @@ class Reader:
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(self) -> bytes:
         try:
             idx = next(self._iter)
             return self.get(idx)
         except (IndexError, StopIteration):
             self._iter = None
             raise StopIteration
+
+    def __len__(self):
+        return self.records_num
 
     def __enter__(self):
         return self
@@ -74,7 +79,7 @@ class Reader:
 
         offset = self.record_index_to_offset_list[index]
         self.data_file.seek(offset)
-        size = int.from_bytes(self.data_file.read(RECORD_OFFSET_SIZE), ENDIANNESS)
+        size = int.from_bytes(self.data_file.read(RECORD_LEN_SIZE), ENDIANNESS)
         return self.data_file.read(size)
 
     def _get_record_index_to_offset_list(self) -> list:

@@ -16,9 +16,10 @@ class Storage:
         if not os.path.isdir(self.storage_path):
             os.makedirs(self.storage_path)
 
-    def write(self, artifact_name: str) -> Writer:
+    def write(self, artifact_name: str,
+              mode: str = Writer.DEFAULT_MODE) -> Writer:
         artifact_path = self._get_artifact_path(artifact_name)
-        return Writer(artifact_path)
+        return Writer(artifact_path, mode)
 
     def read(self, artifact_name: str) -> Reader:
         artifact_path = self._get_artifact_path(artifact_name)
