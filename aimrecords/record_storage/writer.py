@@ -1,5 +1,8 @@
 import os
+import io
+import gzip
 from shutil import rmtree
+from typing import Union
 
 from aimrecords.record_storage.consts import (
     RECORD_OFFSET_SIZE,
@@ -10,6 +13,8 @@ from aimrecords.record_storage.consts import (
     ENDIANNESS,
     RECORDS_NUM,
     BUCKETS_NUM,
+    COMPRESSION_GZIP,
+    COMPRESSION_ALGORITHMS,
 )
 
 from aimrecords.record_storage.utils import (
@@ -28,13 +33,15 @@ class Writer(object):
     MODES = (WRITING_MODE, APPENDING_MODE,)
     DEFAULT_MODE = APPENDING_MODE
 
-    def __init__(self, path: str, mode=DEFAULT_MODE):
+    def __init__(self, path: str, mode: str = DEFAULT_MODE,
+                 compression: Union[None, str] = None):
         self.path = path
         assert mode in self.MODES
+        assert compression in COMPRESSION_ALGORITHMS
 
         if mode == self.WRITING_MODE or not metadata_exist(self.path):
             self.data_version = '0'
-            self.compression = None
+            self.compression = compression
             self.data_chunks_num = 0
             self.buckets_num = 0
             self.records_num = 0
@@ -42,10 +49,13 @@ class Writer(object):
             # TODO: check data version compatibility
             meta = read_metadata(self.path)
             self.data_version = meta.get('data_version')
-            self.compression = meta.get('compression')
             self.data_chunks_num = meta.get('data_chunks_num')
             self.buckets_num = meta.get(BUCKETS_NUM)
             self.records_num = meta.get(RECORDS_NUM)
+            self.compression = meta.get('compression')
+            if self.compression != compression:
+                raise ValueError('already applied {} compression for ' +
+                                 'this artifact'.format(self.compression))
 
         if mode == self.WRITING_MODE and self.exists():
             rmtree(self.path)
@@ -132,8 +142,15 @@ class Writer(object):
         with open(self._current_bucket_fname(), 'rb') as f_in:
             # depending on size of current_bucket we may want to read it in
             # chunks depending on compression we need to handle this differently
-            assert self.compression is None
-            self.current_data_file.write(f_in.read())
+            bucket_data = f_in.read()
+
+            if self.compression == COMPRESSION_GZIP:
+                bucket_comp_obj = io.BytesIO(b'')
+                with gzip.GzipFile(fileobj=bucket_comp_obj, mode='wb') as writer:
+                    writer.write(bucket_data)
+                bucket_data = bucket_comp_obj.getvalue()
+
+            self.current_data_file.write(bucket_data)
 
         self.buckets_num += 1
         self.current_data_file.flush()

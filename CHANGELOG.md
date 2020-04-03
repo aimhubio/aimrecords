@@ -1,5 +1,6 @@
 # Changelog
 
+- Add gzip compression algorithm (gorarakelyan)
 - Add appending mode to the record writer (gorarakelyan)
 - Add main storage to handle artifacts — `artifact_storage` (gorarakelyan)
 - Add initial implementation of `record_storage` (narekgharibyan)

@@ -3,7 +3,7 @@ from aimrecords import Storage
 
 aim_storage = Storage()
 
-with aim_storage.write('nums', 'w') as writer:
+with aim_storage.write('nums', mode='w', compression='gzip') as writer:
     for i in range(1000):
         writer.append_record('{},{},{}'.format(i, 2*i, 3*i).encode())
 

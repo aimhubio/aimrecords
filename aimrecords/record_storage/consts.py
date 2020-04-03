@@ -8,3 +8,6 @@ ENDIANNESS = 'little'
 RECORDS_NUM = 'records_num'
 BUCKETS_NUM = 'buckets_num'
 COMPRESSION = 'compression'
+
+COMPRESSION_GZIP = 'gzip'
+COMPRESSION_ALGORITHMS = (None, COMPRESSION_GZIP,)
