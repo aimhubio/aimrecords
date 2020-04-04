@@ -9,8 +9,8 @@ from aimrecords.artifact_storage.consts import (
 
 
 class Storage:
-    def __init__(self, root_path: str = None):
-        self.root_path = root_path or os.getcwd()
+    def __init__(self, root_path: str):
+        self.root_path = root_path
         self.storage_path = self._get_storage_path()
 
         if not os.path.isdir(self.storage_path):
