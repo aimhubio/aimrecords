@@ -106,3 +106,6 @@ venv.bak/
 .vim
 
 .aim
+.aimrecords_storage
+examples/data
+examples/.aimrecords_storage

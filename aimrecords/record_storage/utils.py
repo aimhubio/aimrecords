@@ -6,8 +6,8 @@ def get_data_fname(path: str) -> str:
     return os.path.join(path, 'data_chunk_00000.bin')
 
 
-def get_artifact_offsets_fname(path: str) -> str:
-    return os.path.join(path, 'artifact_offsets.bin')
+def get_record_offsets_fname(path: str) -> str:
+    return os.path.join(path, 'record_offsets.bin')
 
 
 def get_bucket_offsets_fname(path: str) -> str:

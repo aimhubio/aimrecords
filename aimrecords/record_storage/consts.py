@@ -1,0 +1,9 @@
+RECORD_OFFSET_SIZE = 4
+RECORD_LEN_SIZE = 4
+BUCKET_OFFSET_SIZE = 8
+RECORDS_NUM_SIZE = 8
+ENDIANNESS = 'little'
+
+RECORDS_NUM = 'records_num'
+BUCKETS_NUM = 'buckets_num'
+COMPRESSION = 'compression'
