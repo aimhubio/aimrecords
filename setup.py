@@ -26,9 +26,7 @@ except FileNotFoundError:
     LONG_DESCRIPTION = DESCRIPTION
 
 # What packages are required for this module to be executed?
-REQUIRED = [
-    'protobuf>=3.0.0',
-]
+REQUIRED = []
 
 
 class UploadCommand(Command):

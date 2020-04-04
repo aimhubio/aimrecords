@@ -1,10 +1,1 @@
-
-ARTIFACT_OFFSET_SIZE = 4
-ARTIFACT_LEN_SIZE = 4
-BUCKET_OFFSET_SIZE = 8
-ARTIFACTS_NUM_SIZE = 8
-ENDIANNESS = 'little'
-
-ARTIFACTS_NUM = 'artifacts_num'
-BUCKETS_NUM = 'buckets_num'
-COMPRESSION = 'compression'
+STORAGE_DIR_NAME = '.aimrecords_storage'
