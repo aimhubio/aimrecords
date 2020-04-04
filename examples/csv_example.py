@@ -1,7 +1,9 @@
+import os
+
 from aimrecords import Storage
 
-
-aim_storage = Storage()
+root_path = os.getcwd()
+aim_storage = Storage(root_path)
 
 with aim_storage.write('nums') as writer:
     for i in range(1000):
