@@ -14,10 +14,10 @@ class TestBucketCompression(object):
             length = 1000
             for i in range(length):
                 writer.append_record(str(i).encode())
-            writer.finalize()
+            writer.close()
 
             reader = Reader(path)
-            assert len(reader) == length
+            assert reader.records_num == length
 
             for index in range(length):
                 assert index == int(reader.get(index).decode())

@@ -1,7 +1,7 @@
 import io
 import gzip
 from typing import Union, Tuple, List
-from collections import namedtuple
+from collections import namedtuple, Iterator
 
 from aimrecords.record_storage.consts import (
     RECORD_LEN_SIZE,
@@ -30,7 +30,7 @@ RecordLocation = namedtuple('RecordLocation', ['bucket_offset',
                                                ])
 
 
-class Reader:
+class Reader(object):
     def __init__(self, path: str):
         self.path = path
         self.metadata = read_metadata(path)
@@ -49,45 +49,6 @@ class Reader:
 
         self._iter = None
 
-    def __getitem__(self, item: Union[int, Tuple[int, ...], slice]) -> iter:
-        if isinstance(item, int):
-            self._iter = iter((item,))
-        elif isinstance(item, tuple):
-            if any(map(lambda i: not isinstance(i, int), item)):
-                raise TypeError('tuple indices must be integers')
-            self._iter = iter(item)
-        elif isinstance(item, slice):
-            start, stop, step = item.start, item.stop, item.step
-            indices_range = range(self.records_num)
-            self._iter = iter(indices_range[start:stop:step])
-        else:
-            raise TypeError('expected slice or tuple of indices')
-
-        return iter(self)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> bytes:
-        try:
-            idx = next(self._iter)
-            return self.get(idx)
-        except (IndexError, StopIteration):
-            self._iter = None
-            raise StopIteration
-
-    def __len__(self):
-        return self.records_num
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        del self
-
-    def __del__(self):
-        self.data_file.close()
-
     def get(self, index: int) -> bytes:
         if index >= self.records_num:
             raise IndexError('index out of range')
@@ -99,8 +60,8 @@ class Reader:
             self.data_file.seek(record_loc.bucket_offset + record_offset)
             record_source_fobj = self.data_file
         else:
-            bucket = self._decompress_bucket(record_loc.bucket_offset,
-                                             record_loc.bucket_size)
+            bucket = self._decompressed_bucket(record_loc.bucket_offset,
+                                               record_loc.bucket_size)
             bucket.seek(record_loc.record_local_offset)
             record_source_fobj = bucket
 
@@ -109,7 +70,10 @@ class Reader:
         record = record_source_fobj.read(size)
         return record
 
-    def _decompress_bucket(self, bucket_offset: int, bucket_size: int):
+    def close(self):
+        self.data_file.close()
+
+    def _decompressed_bucket(self, bucket_offset: int, bucket_size: int):
         if (self._decompressed_bucket_cache is not None
                 and self._decompressed_bucket_cache['bucket_offset'] == bucket_offset
                 and self._decompressed_bucket_cache['bucket_size'] == bucket_size):
@@ -166,3 +130,36 @@ class Reader:
     def _validate(self):
         # TODO: implement
         pass
+
+
+class ReaderIterator(Reader, Iterator):
+    def __getitem__(self, item: Union[None, int, Tuple[int, ...], slice]
+                    ) -> iter:
+        if item is None:
+            item = slice(0, None, 1)
+
+        if isinstance(item, int):
+            self._iter = iter((item,))
+        elif isinstance(item, tuple):
+            if any(map(lambda i: not isinstance(i, int), item)):
+                raise TypeError('tuple indices must be integers')
+            self._iter = iter(item)
+        elif isinstance(item, slice):
+            start, stop, step = item.start, item.stop, item.step
+            indices_range = range(self.records_num)
+            self._iter = iter(indices_range[start:stop:step])
+        else:
+            raise TypeError('expected slice or tuple of indices')
+
+        return iter(self)
+
+    def __next__(self) -> bytes:
+        try:
+            idx = next(self._iter)
+            return self.get(idx)
+        except (IndexError, StopIteration):
+            self._iter = None
+            raise StopIteration
+
+    def __len__(self) -> int:
+        return self.records_num

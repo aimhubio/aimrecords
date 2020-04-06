@@ -15,17 +15,17 @@ class TestWriteAppendModes(object):
             chunk_len = length // chunks
 
             for chunk in range(chunks):
-                writer = Writer(path, 'a')
+                writer = Writer(path, rewrite=False)
                 for index in range(chunk * chunk_len, (chunk + 1) * chunk_len):
-                    entry = (str(index) * index).encode()
+                    entry = str(index).encode()
                     writer.append_record(entry)
-                writer.finalize()
+                writer.close()
 
             reader = Reader(path)
-            assert len(reader) == length
+            assert reader.records_num == length
 
             for index in range(length):
-                entry = (str(index) * index).encode()
+                entry = str(index).encode()
                 assert entry == reader.get(index)
 
     def test_write_mode_binary(self):
@@ -34,20 +34,20 @@ class TestWriteAppendModes(object):
 
             length = 1000
 
-            writer = Writer(path, 'w')
+            writer = Writer(path, rewrite=True)
             for index in range(length // 2):
                 writer.append_record(b'0')
-            writer.finalize()
+            writer.close()
 
-            writer = Writer(path, 'w')
+            writer = Writer(path, rewrite=True)
             for index in range(length // 2, length):
-                entry = (str(index) * index).encode()
+                entry = str(index).encode()
                 writer.append_record(entry)
-            writer.finalize()
+            writer.close()
 
             reader = Reader(path)
-            assert len(reader) == length // 2
+            assert reader.records_num == length // 2
 
             for index in range(length // 2, length):
-                entry = (str(index) * index).encode()
+                entry = str(index).encode()
                 assert entry == reader.get(index - length // 2)

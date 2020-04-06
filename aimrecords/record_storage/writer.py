@@ -20,7 +20,7 @@ from aimrecords.record_storage.consts import (
 from aimrecords.record_storage.utils import (
     write_metadata,
     read_metadata,
-    metadata_exist,
+    metadata_exists,
     get_bucket_offsets_fname,
     get_data_fname,
     get_record_offsets_fname,
@@ -28,24 +28,19 @@ from aimrecords.record_storage.utils import (
 
 
 class Writer(object):
-    WRITING_MODE = 'w'
-    APPENDING_MODE = 'a'
-    MODES = (WRITING_MODE, APPENDING_MODE,)
-    DEFAULT_MODE = APPENDING_MODE
-
-    def __init__(self, path: str, mode: str = DEFAULT_MODE,
-                 compression: Union[None, str] = None):
+    def __init__(self, path: str,
+                 compression: Union[None, str] = COMPRESSION_GZIP,
+                 rewrite: bool = False):
         self.path = path
-        assert mode in self.MODES
         assert compression in COMPRESSION_ALGORITHMS
 
-        if mode == self.WRITING_MODE or not metadata_exist(self.path):
+        if rewrite or not metadata_exists(self.path):
             self.data_version = '0'
             self.compression = compression
             self.data_chunks_num = 0
             self.buckets_num = 0
             self.records_num = 0
-        elif mode == self.APPENDING_MODE:
+        else:
             # TODO: check data version compatibility
             meta = read_metadata(self.path)
             self.data_version = meta.get('data_version')
@@ -55,15 +50,16 @@ class Writer(object):
             self.compression = meta.get('compression')
             if self.compression != compression:
                 raise ValueError('already applied {} compression for ' +
-                                 'this artifact'.format(self.compression))
+                                 '{} artifact'.format(self.compression,
+                                                      self.path))
 
-        if mode == self.WRITING_MODE and self.exists():
+        if rewrite and self.exists():
             rmtree(self.path)
             os.mkdir(self.path)
         elif not self.exists():
             os.mkdir(self.path)
 
-        file_open_mode = '{}b'.format(mode)
+        file_open_mode = 'wb' if rewrite else 'ab'
 
         (
             self.record_offsets_file,
@@ -77,12 +73,6 @@ class Writer(object):
             open(self._current_bucket_fname(), file_open_mode),
         )
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.finalize()
-
     def append_record(self, data: bytes):
         current_record_offset = self.current_bucket_file.tell()
         offset_b = current_record_offset.to_bytes(RECORD_OFFSET_SIZE, ENDIANNESS)
@@ -93,14 +83,15 @@ class Writer(object):
         self.current_bucket_file.write(data)
         self.records_num += 1
 
-        # TODO: prob we want to flush less frequently ?
         self.current_bucket_file.flush()
-        self.record_offsets_file.flush()
-
         if self._current_bucket_overflow():
             self._finalize_current_bucket()
 
-    def finalize(self):
+    def flush(self):
+        self.current_bucket_file.flush()
+        self.record_offsets_file.flush()
+
+    def close(self):
         if self.current_bucket_file.tell() > 0:
             self._finalize_current_bucket()
 

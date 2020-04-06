@@ -10,14 +10,14 @@ class TestBasicStuff(object):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = os.path.join(temp_dir, 'loss')
 
-            writer = Writer(path)
+            writer = Writer(path, compression=None)
             length = 1000
-            for i in range(length):
-                writer.append_record(str(i).encode())
-            writer.finalize()
+            for index in range(length):
+                writer.append_record(str(index).encode())
+            writer.close()
 
             reader = Reader(path)
-            assert len(reader) == length
+            assert reader.records_num == length
 
             for index in range(length):
                 assert index == int(reader.get(index).decode())
@@ -26,15 +26,15 @@ class TestBasicStuff(object):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = os.path.join(temp_dir, 'loss')
 
-            writer = Writer(path)
-            length = 1000
+            writer = Writer(path, compression=None)
+            length = 5000
             for index in range(length):
                 entry = (str(index) * index).encode()
                 writer.append_record(entry)
-            writer.finalize()
+            writer.close()
 
             reader = Reader(path)
-            assert len(reader) == length
+            assert reader.records_num == length
 
             for index in range(length):
                 entry = (str(index) * index).encode()

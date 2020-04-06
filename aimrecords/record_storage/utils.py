@@ -18,7 +18,7 @@ def get_metadata_fname(path: str) -> str:
     return os.path.join(path, 'metadata.json')
 
 
-def metadata_exist(path: str):
+def metadata_exists(path: str) -> bool:
     return os.path.isfile(get_metadata_fname(path))
 
 
