@@ -1,17 +1,26 @@
 import os
+import io
+import gzip
+from shutil import rmtree
+from typing import Union
 
 from aimrecords.record_storage.consts import (
     RECORD_OFFSET_SIZE,
     RECORD_LEN_SIZE,
     BUCKET_OFFSET_SIZE,
     RECORDS_NUM_SIZE,
+    BUCKET_SIZE_KB,
     ENDIANNESS,
     RECORDS_NUM,
     BUCKETS_NUM,
+    COMPRESSION_GZIP,
+    COMPRESSION_ALGORITHMS,
 )
 
 from aimrecords.record_storage.utils import (
     write_metadata,
+    read_metadata,
+    metadata_exists,
     get_bucket_offsets_fname,
     get_data_fname,
     get_record_offsets_fname,
@@ -19,26 +28,50 @@ from aimrecords.record_storage.utils import (
 
 
 class Writer(object):
-    def __init__(self, path: str):
-        self.data_version = '0'
-        self.compression = None
-        self.data_chunks_num = 0
-
-        os.mkdir(path)
-
+    def __init__(self, path: str,
+                 compression: Union[None, str] = COMPRESSION_GZIP,
+                 rewrite: bool = False):
         self.path = path
-        self.buckets_num = 0
-        self.records_num = 0
-        self.record_offsets_file = open(get_record_offsets_fname(self.path), 'wb')
-        self.bucket_offsets_file = open(get_bucket_offsets_fname(self.path), 'wb')
-        self.current_data_file = open(get_data_fname(self.path), 'wb')
-        self.current_bucket_file = open(self._current_bucket_fname(), 'wb')
+        assert compression in COMPRESSION_ALGORITHMS
 
-    def __enter__(self):
-        return self
+        if rewrite or not metadata_exists(self.path):
+            self.data_version = '0'
+            self.compression = compression
+            self.data_chunks_num = 0
+            self.buckets_num = 0
+            self.records_num = 0
+        else:
+            # TODO: check data version compatibility
+            meta = read_metadata(self.path)
+            self.data_version = meta.get('data_version')
+            self.data_chunks_num = meta.get('data_chunks_num')
+            self.buckets_num = meta.get(BUCKETS_NUM)
+            self.records_num = meta.get(RECORDS_NUM)
+            self.compression = meta.get('compression')
+            if self.compression != compression:
+                raise ValueError('already applied {} compression for ' +
+                                 '{} artifact'.format(self.compression,
+                                                      self.path))
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.finalize()
+        if rewrite and self.exists():
+            rmtree(self.path)
+            os.mkdir(self.path)
+        elif not self.exists():
+            os.mkdir(self.path)
+
+        file_open_mode = 'wb' if rewrite else 'ab'
+
+        (
+            self.record_offsets_file,
+            self.bucket_offsets_file,
+            self.current_data_file,
+            self.current_bucket_file,
+        ) = (
+            open(get_record_offsets_fname(self.path), file_open_mode),
+            open(get_bucket_offsets_fname(self.path), file_open_mode),
+            open(get_data_fname(self.path), file_open_mode),
+            open(self._current_bucket_fname(), file_open_mode),
+        )
 
     def append_record(self, data: bytes):
         current_record_offset = self.current_bucket_file.tell()
@@ -50,15 +83,15 @@ class Writer(object):
         self.current_bucket_file.write(data)
         self.records_num += 1
 
-        # TODO: prob we want to flush less frequently ?
+        self.current_bucket_file.flush()
+        if self._current_bucket_overflow():
+            self._finalize_current_bucket()
+
+    def flush(self):
         self.current_bucket_file.flush()
         self.record_offsets_file.flush()
 
-        # TODO: do this a bit smarter :))
-        if self.records_num % 1500 == 0:
-            self._finalize_current_bucket()
-
-    def finalize(self):
+    def close(self):
         if self.current_bucket_file.tell() > 0:
             self._finalize_current_bucket()
 
@@ -83,6 +116,12 @@ class Writer(object):
         self.current_bucket_file.close()
         os.remove(self._current_bucket_fname())
 
+    def exists(self):
+        return os.path.isdir(self.path)
+
+    def _current_bucket_overflow(self):
+        return self.current_bucket_file.tell() / 1024 > BUCKET_SIZE_KB
+
     def _finalize_current_bucket(self):
         current_bucket_offset = self.current_data_file.tell()
         offset_b = current_bucket_offset.to_bytes(BUCKET_OFFSET_SIZE, ENDIANNESS)
@@ -94,8 +133,15 @@ class Writer(object):
         with open(self._current_bucket_fname(), 'rb') as f_in:
             # depending on size of current_bucket we may want to read it in
             # chunks depending on compression we need to handle this differently
-            assert self.compression is None
-            self.current_data_file.write(f_in.read())
+            bucket_data = f_in.read()
+
+            if self.compression == COMPRESSION_GZIP:
+                bucket_comp_obj = io.BytesIO(b'')
+                with gzip.GzipFile(fileobj=bucket_comp_obj, mode='wb') as writer:
+                    writer.write(bucket_data)
+                bucket_data = bucket_comp_obj.getvalue()
+
+            self.current_data_file.write(bucket_data)
 
         self.buckets_num += 1
         self.current_data_file.flush()

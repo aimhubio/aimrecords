@@ -1,6 +1,10 @@
-from typing import Union, Tuple
+import io
+import gzip
+from typing import Union, Tuple, List
+from collections import namedtuple, Iterator
 
 from aimrecords.record_storage.consts import (
+    RECORD_LEN_SIZE,
     RECORD_OFFSET_SIZE,
     BUCKET_OFFSET_SIZE,
     RECORDS_NUM_SIZE,
@@ -8,6 +12,8 @@ from aimrecords.record_storage.consts import (
     RECORDS_NUM,
     BUCKETS_NUM,
     COMPRESSION,
+    COMPRESSION_GZIP,
+    COMPRESSION_ALGORITHMS,
 )
 
 from aimrecords.record_storage.utils import (
@@ -18,21 +24,120 @@ from aimrecords.record_storage.utils import (
 )
 
 
-class Reader:
+RecordLocation = namedtuple('RecordLocation', ['bucket_offset',
+                                               'bucket_size',
+                                               'record_local_offset',
+                                               ])
+
+
+class Reader(object):
     def __init__(self, path: str):
         self.path = path
         self.metadata = read_metadata(path)
+        # TODO: check data version compatibility
         self._validate()
 
-        assert self.metadata[COMPRESSION] is None
+        self.compression = self.metadata[COMPRESSION]
+        assert self.compression in COMPRESSION_ALGORITHMS
+        self._decompressed_bucket_cache = None
+
         self.buckets_num = self.metadata[BUCKETS_NUM]
         self.records_num = self.metadata[RECORDS_NUM]
+        self.data_file_bsize = self.metadata['data_file_bsize']
         self.data_file = open(get_data_fname(self.path), 'rb')
         self.record_index_to_offset_list = self._get_record_index_to_offset_list()
 
         self._iter = None
 
-    def __getitem__(self, item: Union[int, Tuple[int, ...], slice]):
+    def get(self, index: int) -> bytes:
+        if index >= self.records_num:
+            raise IndexError('index out of range')
+
+        record_loc = self.record_index_to_offset_list[index]
+
+        if self.compression is None:
+            record_offset = record_loc.record_local_offset
+            self.data_file.seek(record_loc.bucket_offset + record_offset)
+            record_source_fobj = self.data_file
+        else:
+            bucket = self._decompressed_bucket(record_loc.bucket_offset,
+                                               record_loc.bucket_size)
+            bucket.seek(record_loc.record_local_offset)
+            record_source_fobj = bucket
+
+        assert record_source_fobj is not None
+        size = int.from_bytes(record_source_fobj.read(RECORD_LEN_SIZE), ENDIANNESS)
+        record = record_source_fobj.read(size)
+        return record
+
+    def close(self):
+        self.data_file.close()
+
+    def _decompressed_bucket(self, bucket_offset: int, bucket_size: int):
+        if (self._decompressed_bucket_cache is not None
+                and self._decompressed_bucket_cache['bucket_offset'] == bucket_offset
+                and self._decompressed_bucket_cache['bucket_size'] == bucket_size):
+            bucket = self._decompressed_bucket_cache['bucket']
+        else:
+            self.data_file.seek(bucket_offset)
+            compressed_bucket = self.data_file.read(bucket_size)
+
+            if self.compression == COMPRESSION_GZIP:
+                bucket = gzip.GzipFile(fileobj=io.BytesIO(compressed_bucket),
+                                       mode='rb')
+            else:
+                raise NotImplementedError('{} decompression is not ' +
+                                          'implemented'.format(self.compression))
+
+            self._decompressed_bucket_cache = {
+                'bucket_offset': bucket_offset,
+                'bucket_size': bucket_size,
+                'bucket': bucket,
+            }
+
+        return bucket
+
+    def _get_record_index_to_offset_list(self) -> List[RecordLocation]:
+        bucket_offset_records_num_list = []
+        with open(get_bucket_offsets_fname(self.path), 'rb') as f_in:
+            for _ in range(self.buckets_num):
+                bucket_offset = int.from_bytes(f_in.read(BUCKET_OFFSET_SIZE), ENDIANNESS)
+                records_num = int.from_bytes(f_in.read(RECORDS_NUM_SIZE), ENDIANNESS)
+
+                if len(bucket_offset_records_num_list):
+                    prev_bucket_offset = bucket_offset_records_num_list[-1]
+                    prev_bucket_offset[1] = bucket_offset - prev_bucket_offset[0]
+                bucket_offset_records_num_list.append([bucket_offset, 0, records_num])
+
+            last_bucket_offset = bucket_offset_records_num_list[-1]
+            last_bucket_offset[1] = self.data_file_bsize[0] - last_bucket_offset[0]
+
+        record_index_to_offset_list = []
+        with open(get_record_offsets_fname(self.path), 'rb') as f_in:
+            for record_index in range(self.records_num):
+                if record_index >= bucket_offset_records_num_list[0][2]:
+                    bucket_offset_records_num_list.pop(0)
+
+                bucket_offset = bucket_offset_records_num_list[0][0]
+                bucket_size = bucket_offset_records_num_list[0][1]
+                record_local_offset = int.from_bytes(f_in.read(RECORD_OFFSET_SIZE), ENDIANNESS)
+
+                record_loc = RecordLocation(bucket_offset, bucket_size, record_local_offset)
+                record_index_to_offset_list.append(record_loc)
+
+        return record_index_to_offset_list
+
+    def _validate(self):
+        # TODO: implement
+        pass
+
+
+class ReaderIterator(Reader, Iterator):
+    def __getitem__(self, item: Union[None, int, Tuple[int, ...], slice]
+                    ) -> iter:
+        if item is None:
+            item = slice(0, None, 1)
+
         if isinstance(item, int):
             self._iter = iter((item,))
         elif isinstance(item, tuple):
@@ -48,10 +153,7 @@ class Reader:
 
         return iter(self)
 
-    def __iter__(self):
-        return self
-
-    def __next__(self):
+    def __next__(self) -> bytes:
         try:
             idx = next(self._iter)
             return self.get(idx)
@@ -59,45 +161,5 @@ class Reader:
             self._iter = None
             raise StopIteration
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        del self
-
-    def __del__(self):
-        self.data_file.close()
-
-    def get(self, index: int) -> bytes:
-        if index >= len(self.record_index_to_offset_list):
-            raise IndexError('index out of range')
-
-        offset = self.record_index_to_offset_list[index]
-        self.data_file.seek(offset)
-        size = int.from_bytes(self.data_file.read(RECORD_OFFSET_SIZE), ENDIANNESS)
-        return self.data_file.read(size)
-
-    def _get_record_index_to_offset_list(self) -> list:
-        bucket_offset_records_num_list = []
-        with open(get_bucket_offsets_fname(self.path), 'rb') as f_in:
-            for _ in range(self.buckets_num):
-                bucket_offset = int.from_bytes(f_in.read(BUCKET_OFFSET_SIZE), ENDIANNESS)
-                records_num = int.from_bytes(f_in.read(RECORDS_NUM_SIZE), ENDIANNESS)
-
-                bucket_offset_records_num_list.append((bucket_offset, records_num))
-
-        record_index_to_offset_list = []
-        with open(get_record_offsets_fname(self.path), 'rb') as f_in:
-            for record_index in range(self.records_num):
-                if record_index >= bucket_offset_records_num_list[0][1]:
-                    bucket_offset_records_num_list.pop(0)
-
-                bucket_offset = bucket_offset_records_num_list[0][0]
-                record_local_offset = int.from_bytes(f_in.read(RECORD_OFFSET_SIZE), ENDIANNESS)
-                record_index_to_offset_list.append(bucket_offset + record_local_offset)
-
-        return record_index_to_offset_list
-
-    def _validate(self):
-        # TODO: implement
-        pass
+    def __len__(self) -> int:
+        return self.records_num

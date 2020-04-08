@@ -18,6 +18,10 @@ def get_metadata_fname(path: str) -> str:
     return os.path.join(path, 'metadata.json')
 
 
+def metadata_exists(path: str) -> bool:
+    return os.path.isfile(get_metadata_fname(path))
+
+
 def write_metadata(path: str, metadata: dict):
     with open(get_metadata_fname(path), 'w') as f_out:
         json.dump(metadata, f_out)
