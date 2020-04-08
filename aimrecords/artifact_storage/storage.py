@@ -29,9 +29,7 @@ class Storage:
             os.makedirs(self.storage_path)
 
     def __del__(self):
-        while len(self._artifacts.keys()):
-            artifact_name = list(self._artifacts.keys())[0]
-            self.close(artifact_name)
+        self.close()
 
     def open(self, artifact_name: str, compression: Union[None, str] = None):
         assert artifact_name not in self._artifacts
@@ -76,10 +74,17 @@ class Storage:
         artifact = self._get_artifact(artifact_name)
         return artifact.records_num
 
-    def close(self, artifact_name: str):
-        artifact = self._get_artifact(artifact_name)
-        artifact.close()
-        del self._artifacts[artifact_name]
+    def close(self, artifact_name: str = None):
+        if artifact_name:
+            artifact = self._get_artifact(artifact_name)
+            artifact.close()
+            del self._artifacts[artifact_name]
+        else:
+            while len(self._artifacts):
+                artifact_name = list(self._artifacts.keys())[0]
+                artifact_inst = self._artifacts[artifact_name]
+                artifact_inst.close()
+                del self._artifacts[artifact_name]
 
     def _get_artifact(self, artifact_name: str
                       ) -> Union[Writer, ReaderIterator]:
