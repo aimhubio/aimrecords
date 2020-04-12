@@ -28,6 +28,9 @@ class Storage:
         if not os.path.isdir(self.storage_path):
             os.makedirs(self.storage_path)
 
+    def __iter__(self):
+        return iter(self._artifacts)
+
     def __del__(self):
         self.close()
 

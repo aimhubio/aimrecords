@@ -55,9 +55,9 @@ class Writer(object):
 
         if rewrite and self.exists():
             rmtree(self.path)
-            os.mkdir(self.path)
+            os.makedirs(self.path)
         elif not self.exists():
-            os.mkdir(self.path)
+            os.makedirs(self.path)
 
         file_open_mode = 'wb' if rewrite else 'ab'
 
