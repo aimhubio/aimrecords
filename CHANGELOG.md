@@ -1,5 +1,6 @@
 # Changelog
 
+## 0.0.2 Apr 13 2020
 - Enable iteration over storage open artifacts (gorarakelyan)
 - Add gzip compression algorithm (gorarakelyan)
 - Add appending mode to the record writer (gorarakelyan)
