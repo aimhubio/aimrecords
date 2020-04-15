@@ -25,13 +25,13 @@ class TestMulitpleArtifacts(object):
             storage_reader = Storage(temp_dir, 'r')
 
             storage_reader.open('loss')
-            assert storage_reader.get_length('loss') == len
+            assert storage_reader.get_records_num('loss') == len
             for i, record in enumerate(storage_reader.read_records('loss')):
                 assert i == int(record.decode())
             storage_reader.close('loss')
 
             storage_reader.open('accuracy')
-            assert storage_reader.get_length('accuracy') == len
+            assert storage_reader.get_records_num('accuracy') == len
             for i, record in enumerate(storage_reader.read_records('accuracy')):
                 assert i + len == int(record.decode())
             storage_reader.close('accuracy')

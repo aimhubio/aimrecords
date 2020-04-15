@@ -22,7 +22,7 @@ class TestWriteAppendModes(object):
                 writer.close()
 
             reader = Reader(path)
-            assert reader.records_num == length
+            assert reader.get_records_num() == length
 
             for index in range(length):
                 entry = str(index).encode()
@@ -46,7 +46,7 @@ class TestWriteAppendModes(object):
             writer.close()
 
             reader = Reader(path)
-            assert reader.records_num == length // 2
+            assert reader.get_records_num() == length // 2
 
             for index in range(length // 2, length):
                 entry = str(index).encode()

@@ -34,14 +34,14 @@ class Storage:
     def __del__(self):
         self.close()
 
-    def open(self, artifact_name: str, compression: Union[None, str] = None):
+    def open(self, artifact_name: str, *args, **kwargs):
         assert artifact_name not in self._artifacts
         artifact_path = self._get_artifact_path(artifact_name)
 
         if self._mode == self.WRITING_MODE:
-            artifact_instance = Writer(artifact_path, compression)
+            artifact_instance = Writer(artifact_path, *args, **kwargs)
         elif self._mode == self.READING_MODE:
-            artifact_instance = ReaderIterator(artifact_path)
+            artifact_instance = ReaderIterator(artifact_path, *args, **kwargs)
 
         self._artifacts.update({
             artifact_name: artifact_instance,
@@ -73,9 +73,14 @@ class Storage:
         artifact = self._get_artifact(artifact_name)
         return artifact[indices]
 
-    def get_length(self, artifact_name: str) -> int:
+    def get_records_num(self, artifact_name: str) -> int:
         artifact = self._get_artifact(artifact_name)
-        return artifact.records_num
+        return artifact.get_records_num()
+
+    def get_modification_time(self, artifact_name: str) -> float:
+        assert self._mode == self.READING_MODE
+        artifact = self._get_artifact(artifact_name)
+        return artifact.get_modification_time()
 
     def close(self, artifact_name: str = None):
         if artifact_name:
