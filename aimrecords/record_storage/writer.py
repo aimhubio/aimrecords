@@ -15,6 +15,7 @@ from aimrecords.record_storage.consts import (
     BUCKETS_NUM,
     COMPRESSION_GZIP,
     COMPRESSION_ALGORITHMS,
+    DATA_VERSION,
 )
 
 from aimrecords.record_storage.utils import (
@@ -24,6 +25,8 @@ from aimrecords.record_storage.utils import (
     get_bucket_offsets_fname,
     get_data_fname,
     get_record_offsets_fname,
+    current_bucket_fname,
+    data_version_compatibility,
 )
 
 
@@ -35,15 +38,16 @@ class Writer(object):
         assert compression in COMPRESSION_ALGORITHMS
 
         if rewrite or not metadata_exists(self.path):
-            self.data_version = '0'
+            self.data_version = DATA_VERSION
             self.compression = compression
             self.data_chunks_num = 0
             self.buckets_num = 0
             self.records_num = 0
         else:
-            # TODO: check data version compatibility
             meta = read_metadata(self.path)
             self.data_version = meta.get('data_version')
+            data_version_compatibility(self.data_version, DATA_VERSION)
+
             self.data_chunks_num = meta.get('data_chunks_num')
             self.buckets_num = meta.get(BUCKETS_NUM)
             self.records_num = meta.get(RECORDS_NUM)
@@ -70,7 +74,7 @@ class Writer(object):
             open(get_record_offsets_fname(self.path), file_open_mode),
             open(get_bucket_offsets_fname(self.path), file_open_mode),
             open(get_data_fname(self.path), file_open_mode),
-            open(self._current_bucket_fname(), file_open_mode),
+            open(current_bucket_fname(self.path), file_open_mode),
         )
 
     def append_record(self, data: bytes):
@@ -91,10 +95,7 @@ class Writer(object):
         self.current_bucket_file.flush()
         self.record_offsets_file.flush()
 
-    def close(self):
-        if self.current_bucket_file.tell() > 0:
-            self._finalize_current_bucket()
-
+    def save_metadata(self):
         metadata = {
             'data_version': self.data_version,
             'compression': self.compression,
@@ -108,13 +109,19 @@ class Writer(object):
 
         write_metadata(self.path, metadata)
 
+    def close(self):
+        if self.current_bucket_file.tell() > 0:
+            self._finalize_current_bucket()
+
+        self.save_metadata()
+
         self.record_offsets_file.close()
         self.bucket_offsets_file.close()
         self.current_data_file.close()
 
         assert self.current_bucket_file.tell() == 0
         self.current_bucket_file.close()
-        os.remove(self._current_bucket_fname())
+        os.remove(current_bucket_fname(self.path))
 
     def exists(self):
         return os.path.isdir(self.path)
@@ -130,7 +137,7 @@ class Writer(object):
         self.bucket_offsets_file.write(offset_b)
         self.bucket_offsets_file.write(records_num_b)
 
-        with open(self._current_bucket_fname(), 'rb') as f_in:
+        with open(current_bucket_fname(self.path), 'rb') as f_in:
             # depending on size of current_bucket we may want to read it in
             # chunks depending on compression we need to handle this differently
             bucket_data = f_in.read()
@@ -149,5 +156,4 @@ class Writer(object):
         self.current_bucket_file.truncate(0)
         self.current_bucket_file.seek(0)
 
-    def _current_bucket_fname(self) -> str:
-        return os.path.join(self.path, 'current_bucket.bin')
+        self.save_metadata()

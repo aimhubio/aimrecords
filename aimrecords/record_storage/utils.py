@@ -18,6 +18,10 @@ def get_metadata_fname(path: str) -> str:
     return os.path.join(path, 'metadata.json')
 
 
+def current_bucket_fname(path: str) -> str:
+    return os.path.join(path, 'current_bucket.bin')
+
+
 def metadata_exists(path: str) -> bool:
     return os.path.isfile(get_metadata_fname(path))
 
@@ -28,5 +32,11 @@ def write_metadata(path: str, metadata: dict):
 
 
 def read_metadata(path: str) -> dict:
-    with open(get_metadata_fname(path), 'r') as f_in:
-        return json.load(f_in)
+    if metadata_exists(path):
+        with open(get_metadata_fname(path), 'r') as f_in:
+            return json.load(f_in)
+    return {}
+
+
+def data_version_compatibility(prev_version: str, version: str):
+    assert 0 <= int(version) - int(prev_version) <= 1

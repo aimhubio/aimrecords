@@ -17,7 +17,7 @@ class TestBucketCompression(object):
             writer.close()
 
             reader = Reader(path)
-            assert reader.records_num == length
+            assert reader.get_records_num() == length
 
             for index in range(length):
                 assert index == int(reader.get(index).decode())

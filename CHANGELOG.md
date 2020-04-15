@@ -1,5 +1,7 @@
 # Changelog
 
+- Enable parallel artifact read and write (gorarakelyan)
+
 ## 0.0.2 Apr 13 2020
 - Enable iteration over storage open artifacts (gorarakelyan)
 - Add gzip compression algorithm (gorarakelyan)
