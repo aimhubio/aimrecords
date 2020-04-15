@@ -1,5 +1,6 @@
 # Changelog
 
+## 0.0.3 Apr 16 2020
 - Enable parallel artifact read and write (gorarakelyan)
 
 ## 0.0.2 Apr 13 2020
