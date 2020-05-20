@@ -1,11 +1,12 @@
 import os
 import tempfile
+import unittest
 
 from aimrecords.record_storage.reader import Reader
 from aimrecords.record_storage.writer import Writer
 
 
-class TestBucketCompression(object):
+class TestBucketCompression(unittest.TestCase):
     def test_gzip_compression(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = os.path.join(temp_dir, 'loss')

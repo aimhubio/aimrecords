@@ -1,9 +1,10 @@
 import tempfile
+import unittest
 
 from aimrecords import Storage
 
 
-class TestMulitpleArtifacts(object):
+class TestMulitpleArtifacts(unittest.TestCase):
     def test_simple_int(self):
         len = 1000
 
