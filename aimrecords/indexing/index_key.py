@@ -1,33 +1,32 @@
 import re
+from typing import List
 
 from aimrecords.indexing.types import IndexArgType
 
 
 class IndexKey(object):
     def __init__(self, index: IndexArgType):
-        if isinstance(index, int):
-            index = str(index)
-        if isinstance(index, str):
+        if not isinstance(index, tuple):
             index = (index, )
+        self.raw_index = index
         self.validate(index)
-        self._index = self.normalize(index)
-        self._index = tuple(sorted(self._index))
+        self.index = tuple(sorted(self.normalize(index)))
 
-    def __hash__(self):
-        return hash(self._index)
+    def __hash__(self) -> int:
+        return hash(self.index)
 
-    def __eq__(self, other):
-        return hash(self._index) == hash(other)
+    def __eq__(self, other) -> bool:
+        return hash(self.index) == hash(other)
 
-    def __str__(self):
-        return '-'.join(list(self._index))
+    def __str__(self) -> str:
+        return '-'.join(list(self.index))
 
-    def get_keys(self):
-        return self._index
+    def get_keys(self) -> tuple:
+        return self.raw_index
 
     @staticmethod
-    def normalize(index: IndexArgType):
-        return map(lambda i: str(i), index)
+    def normalize(index: IndexArgType) -> List[str]:
+        return list(map(lambda i: str(i), index))
 
     @staticmethod
     def validate(index: IndexArgType):
