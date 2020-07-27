@@ -1,9 +1,10 @@
 import os
 import io
 import gzip
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Optional, Dict
 from collections import namedtuple, Iterator
 
+from aimrecords.indexing.reader import Reader as IndexReader
 from aimrecords.record_storage.consts import (
     RECORD_LEN_SIZE,
     RECORD_OFFSET_SIZE,
@@ -17,7 +18,6 @@ from aimrecords.record_storage.consts import (
     COMPRESSION_ALGORITHMS,
     DATA_VERSION,
 )
-
 from aimrecords.record_storage.utils import (
     read_metadata,
     get_data_fname,
@@ -26,6 +26,8 @@ from aimrecords.record_storage.utils import (
     current_bucket_fname,
     data_version_compatibility,
 )
+from aimrecords.indexing.types import IndexArgType
+from aimrecords.indexing.index_key import IndexKey
 
 
 RecordLocation = namedtuple('RecordLocation', ['bucket_offset',
@@ -41,7 +43,7 @@ class Reader(object):
         self.uncommitted_bucket_visible = uncommitted_bucket_visible
         self.metadata = read_metadata(path)
         self.data_version = self.metadata.get('data_version') or DATA_VERSION
-        self._validate()
+        self.validate()
 
         data_version_compatibility(self.data_version, DATA_VERSION)
 
@@ -63,17 +65,32 @@ class Reader(object):
             self.curr_bucket_size = 0
 
         self.all_records_num = self.data_records_num
-        self.record_index_to_offset_list = self._get_record_index_to_offset_list()
+        self.record_index_to_offset_list = \
+            self._get_record_index_to_offset_list()
 
+        self.indexes: Dict[IndexKey, IndexReader] = {}
         self._iter = None
 
-    def get_records_num(self) -> int:
-        if self.uncommitted_bucket_visible:
-            return self.all_records_num
+    def get_records_num(self, indexing: Optional[IndexArgType] = None) -> int:
+        if indexing is None:
+            if self.uncommitted_bucket_visible:
+                return self.all_records_num
+            else:
+                return self.data_records_num
         else:
-            return self.data_records_num
+            if self.uncommitted_bucket_visible:
+                return self._get_index(indexing).indexed_records_num()
+            else:
+                indices_meta = self.metadata.get('indices') or {}
+                index_key = IndexKey(indexing)
+                index_meta = indices_meta.get(str(index_key)) or {}
+                return index_meta.get('indexed_records_num') or 0
 
-    def get(self, index: int) -> bytes:
+    def get(self, index: int,
+            indexing: Optional[IndexArgType] = None) -> bytes:
+        if indexing is not None:
+            index = self._get_index(indexing).get(index)
+
         if index >= self.get_records_num():
             raise IndexError('index out of range')
 
@@ -94,7 +111,8 @@ class Reader(object):
             record_source_fobj = bucket
 
         assert record_source_fobj is not None
-        size = int.from_bytes(record_source_fobj.read(RECORD_LEN_SIZE), ENDIANNESS)
+        size = int.from_bytes(record_source_fobj.read(RECORD_LEN_SIZE),
+                              ENDIANNESS)
         record = record_source_fobj.read(size)
         return record
 
@@ -102,6 +120,9 @@ class Reader(object):
         self.data_file.close()
         if self.current_bucket_file:
             self.current_bucket_file.close()
+
+        for index in self.indexes.values():
+            index.close()
 
     def get_modification_time(self) -> float:
         if self.uncommitted_bucket_visible:
@@ -114,6 +135,12 @@ class Reader(object):
             return os.path.getmtime(data_fname)
 
         return 0
+
+    def _get_index(self, indexing: IndexArgType) -> IndexReader:
+        index_key = IndexKey(indexing)
+        if index_key not in self.indexes:
+            self.indexes[index_key] = IndexReader(self.path, index_key, 'rb')
+        return self.indexes[index_key]
 
     def _decompressed_bucket(self, bucket_offset: int, bucket_size: int):
         if (self._decompressed_bucket_cache is not None
@@ -129,7 +156,8 @@ class Reader(object):
                                        mode='rb')
             else:
                 raise NotImplementedError('{} decompression is not ' +
-                                          'implemented'.format(self.compression))
+                                          'implemented'
+                                          .format(self.compression))
 
             self._decompressed_bucket_cache = {
                 'bucket_offset': bucket_offset,
@@ -143,17 +171,22 @@ class Reader(object):
         bucket_offset_records_num_list = []
         with open(get_bucket_offsets_fname(self.path), 'rb') as f_in:
             for _ in range(self.buckets_num):
-                bucket_offset = int.from_bytes(f_in.read(BUCKET_OFFSET_SIZE), ENDIANNESS)
-                records_num = int.from_bytes(f_in.read(RECORDS_NUM_SIZE), ENDIANNESS)
+                bucket_offset = int.from_bytes(f_in.read(BUCKET_OFFSET_SIZE),
+                                               ENDIANNESS)
+                records_num = int.from_bytes(f_in.read(RECORDS_NUM_SIZE),
+                                             ENDIANNESS)
 
                 if len(bucket_offset_records_num_list):
                     prev_bucket_offset = bucket_offset_records_num_list[-1]
-                    prev_bucket_offset[1] = bucket_offset - prev_bucket_offset[0]
-                bucket_offset_records_num_list.append([bucket_offset, 0, records_num])
+                    prev_bucket_offset[1] = (bucket_offset
+                                             - prev_bucket_offset[0])
+                bucket_offset_records_num_list.append([bucket_offset, 0,
+                                                       records_num])
 
             if len(bucket_offset_records_num_list):
                 last_bucket_offset = bucket_offset_records_num_list[-1]
-                last_bucket_offset[1] = self.data_file_bsize[0] - last_bucket_offset[0]
+                last_bucket_offset[1] = (self.data_file_bsize[0]
+                                         - last_bucket_offset[0])
 
         record_index_to_offset_list = []
         with open(get_record_offsets_fname(self.path), 'rb') as f_in:
@@ -163,7 +196,9 @@ class Reader(object):
 
                 bucket_offset = bucket_offset_records_num_list[0][0]
                 bucket_size = bucket_offset_records_num_list[0][1]
-                record_local_offset = int.from_bytes(f_in.read(RECORD_OFFSET_SIZE), ENDIANNESS)
+                record_local_offset = int.from_bytes(
+                    f_in.read(RECORD_OFFSET_SIZE),
+                    ENDIANNESS)
 
                 record_loc = RecordLocation(bucket_offset, bucket_size,
                                             False, record_local_offset)
@@ -176,7 +211,8 @@ class Reader(object):
                     if not record_offset_bytes:
                         break
 
-                    record_local_offset = int.from_bytes(record_offset_bytes, ENDIANNESS)
+                    record_local_offset = int.from_bytes(record_offset_bytes,
+                                                         ENDIANNESS)
                     record_loc = RecordLocation(0, self.curr_bucket_size,
                                                 True, record_local_offset)
                     record_index_to_offset_list.append(record_loc)
@@ -184,13 +220,17 @@ class Reader(object):
 
         return record_index_to_offset_list
 
-    def _validate(self):
+    def validate(self):
         # TODO: implement
         pass
 
 
 class ReaderIterator(Reader, Iterator):
-    def __getitem__(self, item: Union[None, int, Tuple[int, ...], slice]
+    def __init__(self, *args, **kwargs):
+        super(ReaderIterator, self).__init__(*args, **kwargs)
+        self.applied_index = None
+
+    def __getitem__(self, item: Optional[Union[int, Tuple[int, ...], slice]]
                     ) -> iter:
         if item is None:
             item = slice(0, None, 1)
@@ -203,7 +243,11 @@ class ReaderIterator(Reader, Iterator):
             self._iter = iter(item)
         elif isinstance(item, slice):
             start, stop, step = item.start, item.stop, item.step
-            indices_range = range(self.get_records_num())
+            if self.applied_index is None:
+                indices_range = range(self.get_records_num())
+            else:
+                indices_range = range(
+                    self._get_index(self.applied_index).indexed_records_num())
             self._iter = iter(indices_range[start:stop:step])
         else:
             raise TypeError('expected slice or tuple of indices')
@@ -213,10 +257,10 @@ class ReaderIterator(Reader, Iterator):
     def __next__(self) -> bytes:
         try:
             idx = next(self._iter)
-            return self.get(idx)
+            return self.get(idx, self.applied_index)
         except (IndexError, StopIteration):
             self._iter = None
             raise StopIteration
 
-    def __len__(self) -> int:
-        return self.data_records_num
+    def apply_index(self, index: IndexArgType):
+        self.applied_index = index

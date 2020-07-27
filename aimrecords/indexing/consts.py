@@ -1,0 +1,2 @@
+INDEX_OFFSET_SIZE = 4
+ENDIANNESS = 'little'

@@ -2,7 +2,7 @@ import os
 import io
 import gzip
 from shutil import rmtree
-from typing import Union
+from typing import Union, Optional, Dict, Tuple
 
 from aimrecords.record_storage.consts import (
     RECORD_OFFSET_SIZE,
@@ -17,7 +17,6 @@ from aimrecords.record_storage.consts import (
     COMPRESSION_ALGORITHMS,
     DATA_VERSION,
 )
-
 from aimrecords.record_storage.utils import (
     write_metadata,
     read_metadata,
@@ -28,21 +27,32 @@ from aimrecords.record_storage.utils import (
     current_bucket_fname,
     data_version_compatibility,
 )
+from aimrecords.indexing.index_key import IndexKey, IndexArgType
+from aimrecords.indexing.writer import IndexWriter
 
 
 class Writer(object):
+    @staticmethod
+    def validate_artifact_path(path):
+        # TODO
+        return True
+
     def __init__(self, path: str,
-                 compression: Union[None, str] = COMPRESSION_GZIP,
+                 compression: Optional[str] = COMPRESSION_GZIP,
                  rewrite: bool = False):
-        self.path = path
+        assert self.validate_artifact_path(path)
         assert compression in COMPRESSION_ALGORITHMS
 
-        if rewrite or not metadata_exists(self.path):
+        self.path = path
+        self.rewrite = rewrite
+
+        if self.rewrite or not metadata_exists(self.path):
             self.data_version = DATA_VERSION
             self.compression = compression
             self.data_chunks_num = 0
             self.buckets_num = 0
             self.records_num = 0
+            self.indices_meta = {}
         else:
             meta = read_metadata(self.path)
             self.data_version = meta.get('data_version')
@@ -52,18 +62,19 @@ class Writer(object):
             self.buckets_num = meta.get(BUCKETS_NUM)
             self.records_num = meta.get(RECORDS_NUM)
             self.compression = meta.get('compression')
+            self.indices_meta = meta.get('indices') or {}
             if self.compression != compression:
                 raise ValueError('already applied {} compression for ' +
                                  '{} artifact'.format(self.compression,
                                                       self.path))
 
-        if rewrite and self.exists():
+        if self.rewrite and self.exists():
             rmtree(self.path)
             os.makedirs(self.path)
         elif not self.exists():
             os.makedirs(self.path)
 
-        file_open_mode = 'wb' if rewrite else 'ab'
+        file_open_mode = 'wb' if self.rewrite else 'ab'
 
         (
             self.record_offsets_file,
@@ -77,23 +88,46 @@ class Writer(object):
             open(current_bucket_fname(self.path), file_open_mode),
         )
 
-    def append_record(self, data: bytes):
+        self.file_open_mode = file_open_mode
+
+        self.indexes: Dict[IndexKey, IndexWriter] = {}
+
+    def append_record(self, data: bytes,
+                      index: Optional[Union[Tuple[Union[str, int], ...],
+                                            str, int]] = None):
         current_record_offset = self.current_bucket_file.tell()
-        offset_b = current_record_offset.to_bytes(RECORD_OFFSET_SIZE, ENDIANNESS)
+        offset_b = current_record_offset.to_bytes(RECORD_OFFSET_SIZE,
+                                                  ENDIANNESS)
         data_len_b = len(data).to_bytes(RECORD_LEN_SIZE, ENDIANNESS)
 
         self.record_offsets_file.write(offset_b)
         self.current_bucket_file.write(data_len_b)
         self.current_bucket_file.write(data)
+
+        if index is not None:
+            self.register_index(index)
+
         self.records_num += 1
 
         self.current_bucket_file.flush()
         if self._current_bucket_overflow():
             self._finalize_current_bucket()
 
+    def register_index(self, index: IndexArgType):
+        index_key = IndexKey(index)
+        if index_key not in self.indexes:
+            self.indexes[index_key] = IndexWriter(self.path, index_key,
+                                                  self.file_open_mode)
+
+        index_inst = self.indexes[index_key]
+        index_inst.register_record(self.records_num)
+
     def flush(self):
         self.current_bucket_file.flush()
         self.record_offsets_file.flush()
+
+        for index in self.indexes.values():
+            index.flush()
 
     def save_metadata(self):
         metadata = {
@@ -105,7 +139,16 @@ class Writer(object):
             'record_offsets_bsize': self.record_offsets_file.tell(),
             'bucket_offsets_bsize': self.bucket_offsets_file.tell(),
             'data_file_bsize': [self.current_data_file.tell()],
+            'indices': self.indices_meta,
         }
+
+        for index_key, index in self.indexes.items():
+            metadata['indices'].setdefault(index.name, {})
+            idx_meta = metadata['indices'][index.name]
+            idx_meta.setdefault('indexed_records_num', 0)
+            idx_meta.setdefault('keys', index_key.get_keys())
+            if index.num_appended:
+                idx_meta['indexed_records_num'] = index.indexed_records_num()
 
         write_metadata(self.path, metadata)
 
@@ -119,6 +162,9 @@ class Writer(object):
         self.bucket_offsets_file.close()
         self.current_data_file.close()
 
+        for index in self.indexes.values():
+            index.close()
+
         assert self.current_bucket_file.tell() == 0
         self.current_bucket_file.close()
         os.remove(current_bucket_fname(self.path))
@@ -131,7 +177,8 @@ class Writer(object):
 
     def _finalize_current_bucket(self):
         current_bucket_offset = self.current_data_file.tell()
-        offset_b = current_bucket_offset.to_bytes(BUCKET_OFFSET_SIZE, ENDIANNESS)
+        offset_b = current_bucket_offset.to_bytes(BUCKET_OFFSET_SIZE,
+                                                  ENDIANNESS)
         records_num_b = self.records_num.to_bytes(RECORDS_NUM_SIZE, ENDIANNESS)
 
         self.bucket_offsets_file.write(offset_b)
@@ -144,7 +191,8 @@ class Writer(object):
 
             if self.compression == COMPRESSION_GZIP:
                 bucket_comp_obj = io.BytesIO(b'')
-                with gzip.GzipFile(fileobj=bucket_comp_obj, mode='wb') as writer:
+                with gzip.GzipFile(fileobj=bucket_comp_obj, mode='wb') \
+                        as writer:
                     writer.write(bucket_data)
                 bucket_data = bucket_comp_obj.getvalue()
 
