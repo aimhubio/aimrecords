@@ -1,4 +1,5 @@
 import re
+from typing import List
 
 from aimrecords.indexing.types import IndexArgType
 
@@ -11,21 +12,21 @@ class IndexKey(object):
         self.validate(index)
         self.index = tuple(sorted(self.normalize(index)))
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.index)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return hash(self.index) == hash(other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return '-'.join(list(self.index))
 
     def get_keys(self) -> tuple:
         return self.raw_index
 
     @staticmethod
-    def normalize(index: IndexArgType):
-        return map(lambda i: str(i), index)
+    def normalize(index: IndexArgType) -> List[str]:
+        return list(map(lambda i: str(i), index))
 
     @staticmethod
     def validate(index: IndexArgType):
