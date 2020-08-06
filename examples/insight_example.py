@@ -10,7 +10,8 @@ writer_storage = Storage(storage_path, 'w')
 
 writer_storage.open('loss')
 for step in range(1000):
-    writer_storage.append_record('loss', str(step).encode())
+    writer_storage.append_record('loss', str(step).encode(),
+                                  secondary_indexing={'val': step})
     if step % 50 == 0:
         writer_storage.flush()
 writer_storage.close()

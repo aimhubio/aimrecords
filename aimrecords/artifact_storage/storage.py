@@ -1,5 +1,5 @@
 import os
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, Dict
 from collections import Iterator
 
 from aimrecords.record_storage.writer import Writer
@@ -51,11 +51,15 @@ class Storage:
 
     def append_record(self, artifact_name: str, data: bytes,
                       indexing: Optional[Union[Tuple[Union[str, int], ...],
-                                               str, int]] = None) -> int:
+                                               str, int]] = None,
+                      secondary_indexing: Dict = None) -> int:
         assert self._mode == self.WRITING_MODE
 
         artifact = self._get_artifact(artifact_name)
-        artifact.append_record(data, indexing)
+        if secondary_indexing and not artifact.tree:
+            for key in secondary_indexing.keys():
+                artifact.add_tree(key)
+        artifact.append_record(data, indexing, secondary_indexing)
 
         return artifact.records_num
 
@@ -72,13 +76,17 @@ class Storage:
     def read_records(self, artifact_name: str,
                      record_indices: Optional[Union[int, Tuple[int, ...],
                                                     slice]] = None,
-                     indexing: Optional[IndexArgType] = None) -> Iterator:
+                     indexing: Optional[IndexArgType] = None,
+                     secondary_indexing: str = None) -> Iterator:
         assert self._mode == self.READING_MODE
 
         artifact = self._get_artifact(artifact_name)
 
         if indexing is not None:
             artifact.apply_index(indexing)
+
+        if secondary_indexing:
+            artifact.apply_secondary_index(secondary_indexing)
 
         return artifact[record_indices]
 

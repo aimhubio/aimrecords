@@ -3,6 +3,7 @@ import io
 import gzip
 from shutil import rmtree
 from typing import Union, Optional, Dict, Tuple
+import pickle
 
 from aimrecords.record_storage.consts import (
     RECORD_OFFSET_SIZE,
@@ -29,6 +30,7 @@ from aimrecords.record_storage.utils import (
 )
 from aimrecords.indexing.index_key import IndexKey, IndexArgType
 from aimrecords.indexing.writer import IndexWriter
+from aimrecords.record_storage.tree import BPTree
 
 
 class Writer(object):
@@ -92,9 +94,12 @@ class Writer(object):
 
         self.indexes: Dict[IndexKey, IndexWriter] = {}
 
+        self.tree = False
+
     def append_record(self, data: bytes,
                       index: Optional[Union[Tuple[Union[str, int], ...],
-                                            str, int]] = None):
+                                            str, int]] = None,
+                      secondary_indexing: Dict = None):
         current_record_offset = self.current_bucket_file.tell()
         offset_b = current_record_offset.to_bytes(RECORD_OFFSET_SIZE,
                                                   ENDIANNESS)
@@ -107,11 +112,17 @@ class Writer(object):
         if index is not None:
             self.register_index(index)
 
+        if secondary_indexing:
+            self.register_secondary_index(secondary_indexing)
+
         self.records_num += 1
 
         self.current_bucket_file.flush()
         if self._current_bucket_overflow():
             self._finalize_current_bucket()
+    
+
+        
 
     def register_index(self, index: IndexArgType):
         index_key = IndexKey(index)
@@ -121,6 +132,18 @@ class Writer(object):
 
         index_inst = self.indexes[index_key]
         index_inst.register_record(self.records_num)
+
+    def register_secondary_index(self, secondary_indexing: Dict = None):
+        for key in secondary_indexing.keys():
+            tree_name = os.path.join(self.path,
+                                '{}.tree'.format(key))
+            with open(tree_name, 'rb') as tree_file:
+                tree = pickle.load(tree_file)
+            tree.insert(secondary_indexing[key], self.records_num)
+
+            with open(tree_name, 'wb') as tree_file:
+                pickle.dump(tree, tree_file)
+
 
     def flush(self):
         self.current_bucket_file.flush()
@@ -205,3 +228,12 @@ class Writer(object):
         self.current_bucket_file.seek(0)
 
         self.save_metadata()
+
+    def add_tree(self, name):
+        tree = BPTree(20)
+
+        file_name = '{}.tree'.format(name)
+        tree_file = open(os.path.join(self.path, file_name), 'wb')
+        pickle.dump(tree, tree_file)
+
+        self.tree = True

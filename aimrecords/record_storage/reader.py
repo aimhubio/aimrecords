@@ -3,6 +3,7 @@ import io
 import gzip
 from typing import Union, Tuple, List, Optional, Dict
 from collections import namedtuple, Iterator
+import pickle
 
 from aimrecords.indexing.reader import Reader as IndexReader
 from aimrecords.record_storage.consts import (
@@ -87,9 +88,17 @@ class Reader(object):
                 return index_meta.get('indexed_records_num') or 0
 
     def get(self, index: int,
-            indexing: Optional[IndexArgType] = None) -> bytes:
+            indexing: Optional[IndexArgType] = None,
+            secondary_indexing: str = None) -> bytes:
         if indexing is not None:
             index = self._get_index(indexing).get(index)
+
+        if secondary_indexing:
+            tree_name = os.path.join(self.path,
+                                 '{}.tree'.format(secondary_indexing))
+            with open(tree_name, 'rb') as tree_file:
+                tree = pickle.load(tree_file)
+            index = tree[index]
 
         if index >= self.get_records_num():
             raise IndexError('index out of range')
@@ -113,6 +122,7 @@ class Reader(object):
         assert record_source_fobj is not None
         size = int.from_bytes(record_source_fobj.read(RECORD_LEN_SIZE),
                               ENDIANNESS)
+
         record = record_source_fobj.read(size)
         return record
 
@@ -229,6 +239,7 @@ class ReaderIterator(Reader, Iterator):
     def __init__(self, *args, **kwargs):
         super(ReaderIterator, self).__init__(*args, **kwargs)
         self.applied_index = None
+        self.secondary_indexing = None
 
     def __getitem__(self, item: Optional[Union[int, Tuple[int, ...], slice]]
                     ) -> iter:
@@ -243,11 +254,11 @@ class ReaderIterator(Reader, Iterator):
             self._iter = iter(item)
         elif isinstance(item, slice):
             start, stop, step = item.start, item.stop, item.step
-            if self.applied_index is None:
-                indices_range = range(self.get_records_num())
-            else:
+            if self.applied_index:
                 indices_range = range(
                     self._get_index(self.applied_index).indexed_records_num())
+            else:
+                indices_range = range(self.get_records_num())
             self._iter = iter(indices_range[start:stop:step])
         else:
             raise TypeError('expected slice or tuple of indices')
@@ -257,10 +268,16 @@ class ReaderIterator(Reader, Iterator):
     def __next__(self) -> bytes:
         try:
             idx = next(self._iter)
-            return self.get(idx, self.applied_index)
+            if self.secondary_indexing:
+                return self.get(idx, self.applied_index, self.secondary_indexing)
+            else:
+                return self.get(idx, self.applied_index)
         except (IndexError, StopIteration):
             self._iter = None
             raise StopIteration
 
     def apply_index(self, index: IndexArgType):
         self.applied_index = index
+    
+    def apply_secondary_index(self, secondary_indexing: Dict = None):
+        self.secondary_indexing = secondary_indexing
