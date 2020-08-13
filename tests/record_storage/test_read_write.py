@@ -35,7 +35,7 @@ class TestReadWrite(unittest.TestCase):
                 writer.append_record(str(index).encode())
             writer.close()
 
-            writer = Writer(path, rewrite=False)
+            writer = Writer(path, rewrite=False, compression='gzip')
             for index in range(length, 2 * length):
                 writer.append_record(str(index).encode())
                 writer.flush()

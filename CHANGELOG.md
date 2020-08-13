@@ -1,5 +1,6 @@
 # Changelog
 
+- Change offset index type to dictionary (gorarakelyan)
 - Enable offset indexing mechanism for fast retrieval (gorarakelyan)
 
 ## 0.0.3 Apr 16 2020

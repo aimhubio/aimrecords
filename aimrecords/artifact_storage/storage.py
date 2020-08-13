@@ -106,8 +106,8 @@ class Storage:
                       ) -> Union[Writer, ReaderIterator]:
         artifact = self._artifacts.get(artifact_name)
         if artifact is None:
-            raise ValueError('artifact {} is not in ' +
-                             'storage'.format(artifact_name))
+            raise ValueError(('artifact {} is not in ' +
+                              'storage'.format(artifact_name)))
         return artifact
 
     def _get_storage_path(self) -> str:

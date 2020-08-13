@@ -38,7 +38,7 @@ class Writer(object):
         return True
 
     def __init__(self, path: str,
-                 compression: Optional[str] = COMPRESSION_GZIP,
+                 compression: Optional[str] = None,
                  rewrite: bool = False):
         assert self.validate_artifact_path(path)
         assert compression in COMPRESSION_ALGORITHMS
