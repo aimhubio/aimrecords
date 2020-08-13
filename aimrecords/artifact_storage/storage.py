@@ -1,10 +1,9 @@
 import os
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 from collections import Iterator
 
 from aimrecords.record_storage.writer import Writer
 from aimrecords.record_storage.reader import ReaderIterator
-
 from aimrecords.artifact_storage.consts import (
     STORAGE_DIR_NAME,
 )
@@ -42,16 +41,19 @@ class Storage:
             artifact_instance = Writer(artifact_path, *args, **kwargs)
         elif self._mode == self.READING_MODE:
             artifact_instance = ReaderIterator(artifact_path, *args, **kwargs)
+        else:
+            raise TypeError('undefined mode')
 
         self._artifacts.update({
             artifact_name: artifact_instance,
         })
 
-    def append_record(self, artifact_name: str, data: bytes) -> int:
+    def append_record(self, artifact_name: str, data: bytes,
+                      indexing: Optional[dict] = None) -> int:
         assert self._mode == self.WRITING_MODE
 
         artifact = self._get_artifact(artifact_name)
-        artifact.append_record(data)
+        artifact.append_record(data, indexing)
 
         return artifact.records_num
 
@@ -66,16 +68,22 @@ class Storage:
                 a.flush()
 
     def read_records(self, artifact_name: str,
-                     indices: Union[None, int,  Tuple[int, ...], slice] = None
-                     ) -> Iterator:
+                     record_indices: Optional[Union[int, Tuple[int, ...],
+                                                    slice]] = None,
+                     indexing: Optional[dict] = None) -> Iterator:
         assert self._mode == self.READING_MODE
 
         artifact = self._get_artifact(artifact_name)
-        return artifact[indices]
 
-    def get_records_num(self, artifact_name: str) -> int:
+        if indexing is not None:
+            artifact.apply_index(indexing)
+
+        return artifact[record_indices]
+
+    def get_records_num(self, artifact_name: str,
+                        indexing: Optional[dict] = None) -> int:
         artifact = self._get_artifact(artifact_name)
-        return artifact.get_records_num()
+        return artifact.get_records_num(indexing)
 
     def get_modification_time(self, artifact_name: str) -> float:
         assert self._mode == self.READING_MODE
@@ -98,8 +106,8 @@ class Storage:
                       ) -> Union[Writer, ReaderIterator]:
         artifact = self._artifacts.get(artifact_name)
         if artifact is None:
-            raise ValueError('artifact {} is not in ' +
-                             'storage'.format(artifact_name))
+            raise ValueError(('artifact {} is not in ' +
+                              'storage'.format(artifact_name)))
         return artifact
 
     def _get_storage_path(self) -> str:

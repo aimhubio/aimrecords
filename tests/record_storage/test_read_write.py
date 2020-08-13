@@ -1,11 +1,12 @@
 import os
 import tempfile
+import unittest
 
 from aimrecords.record_storage.reader import Reader
 from aimrecords.record_storage.writer import Writer
 
 
-class TestReadWrite(object):
+class TestReadWrite(unittest.TestCase):
     def test_dirty_read(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = os.path.join(temp_dir, 'loss')
@@ -34,7 +35,7 @@ class TestReadWrite(object):
                 writer.append_record(str(index).encode())
             writer.close()
 
-            writer = Writer(path, rewrite=False)
+            writer = Writer(path, rewrite=False, compression='gzip')
             for index in range(length, 2 * length):
                 writer.append_record(str(index).encode())
                 writer.flush()

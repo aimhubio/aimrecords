@@ -1,11 +1,12 @@
 import os
 import tempfile
+import unittest
 
 from aimrecords.record_storage.writer import Writer
 from aimrecords.record_storage.reader import Reader
 
 
-class TestModTime(object):
+class TestModTime(unittest.TestCase):
     def test_modification_time(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = os.path.join(temp_dir, 'loss')

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.4 Aug 13 2020
+- Change offset index type to dictionary (gorarakelyan)
+- Enable offset indexing mechanism for fast retrieval (gorarakelyan)
+
 ## 0.0.3 Apr 16 2020
 - Enable parallel artifact read and write (gorarakelyan)
 

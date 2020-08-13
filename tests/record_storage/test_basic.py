@@ -1,11 +1,12 @@
 import os
 import tempfile
+import unittest
 
 from aimrecords.record_storage.reader import Reader
 from aimrecords.record_storage.writer import Writer
 
 
-class TestBasicStuff(object):
+class TestBasicStuff(unittest.TestCase):
     def test_simple_int(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = os.path.join(temp_dir, 'loss')
