@@ -23,7 +23,6 @@ class IndexBase(object):
         self._offset_file = None
 
     def indexed_records_num(self):
-        print(os.path.getsize(self._offset_file_path))
         return int(os.path.getsize(self._offset_file_path) / INDEX_OFFSET_SIZE)
 
     def close(self):

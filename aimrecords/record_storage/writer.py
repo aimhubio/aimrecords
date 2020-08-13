@@ -2,7 +2,7 @@ import os
 import io
 import gzip
 from shutil import rmtree
-from typing import Union, Optional, Dict, Tuple
+from typing import Optional, Dict
 
 from aimrecords.record_storage.consts import (
     RECORD_OFFSET_SIZE,
@@ -27,7 +27,7 @@ from aimrecords.record_storage.utils import (
     current_bucket_fname,
     data_version_compatibility,
 )
-from aimrecords.indexing.index_key import IndexKey, IndexArgType
+from aimrecords.indexing.index_key import IndexKey
 from aimrecords.indexing.writer import IndexWriter
 
 
@@ -38,7 +38,7 @@ class Writer(object):
         return True
 
     def __init__(self, path: str,
-                 compression: Optional[str] = COMPRESSION_GZIP,
+                 compression: Optional[str] = None,
                  rewrite: bool = False):
         assert self.validate_artifact_path(path)
         assert compression in COMPRESSION_ALGORITHMS
@@ -93,8 +93,7 @@ class Writer(object):
         self.indexes: Dict[IndexKey, IndexWriter] = {}
 
     def append_record(self, data: bytes,
-                      index: Optional[Union[Tuple[Union[str, int], ...],
-                                            str, int]] = None):
+                      index: Optional[dict] = None):
         current_record_offset = self.current_bucket_file.tell()
         offset_b = current_record_offset.to_bytes(RECORD_OFFSET_SIZE,
                                                   ENDIANNESS)
@@ -113,7 +112,7 @@ class Writer(object):
         if self._current_bucket_overflow():
             self._finalize_current_bucket()
 
-    def register_index(self, index: IndexArgType):
+    def register_index(self, index: dict):
         index_key = IndexKey(index)
         if index_key not in self.indexes:
             self.indexes[index_key] = IndexWriter(self.path, index_key,
@@ -146,7 +145,7 @@ class Writer(object):
             metadata['indices'].setdefault(index.name, {})
             idx_meta = metadata['indices'][index.name]
             idx_meta.setdefault('indexed_records_num', 0)
-            idx_meta.setdefault('keys', index_key.get_keys())
+            idx_meta.setdefault('keys', index_key.index)
             if index.num_appended:
                 idx_meta['indexed_records_num'] = index.indexed_records_num()
 

@@ -12,11 +12,11 @@ writer_storage.open('loss')
 for step in range(100):
     writer_storage.append_record('loss',
                                  str(step).encode(),
-                                 indexing='train')
+                                 indexing={'subset': 'train'})
     if step % 4 == 0:
         writer_storage.append_record('loss',
                                      str(step).encode(),
-                                     indexing='val')
+                                     indexing={'subset': 'val'})
 
 writer_storage.close()
 
@@ -29,12 +29,14 @@ for r in reader_storage.read_records('loss', slice(0, 20)):
 
 print('-' * 25)
 
-for r in reader_storage.read_records('loss', slice(0, 10), indexing='train'):
+for r in reader_storage.read_records('loss', slice(0, 10),
+                                     indexing={'subset': 'train'}):
     print(r)
 
 print('-' * 25)
 
-for r in reader_storage.read_records('loss', slice(0, 10), indexing='val'):
+for r in reader_storage.read_records('loss', slice(0, 10),
+                                     indexing={'subset': 'val'}):
     print(r)
 
 reader_storage.close()

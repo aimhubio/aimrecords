@@ -4,7 +4,6 @@ from collections import Iterator
 
 from aimrecords.record_storage.writer import Writer
 from aimrecords.record_storage.reader import ReaderIterator
-from aimrecords.indexing.types import IndexArgType
 from aimrecords.artifact_storage.consts import (
     STORAGE_DIR_NAME,
 )
@@ -50,8 +49,7 @@ class Storage:
         })
 
     def append_record(self, artifact_name: str, data: bytes,
-                      indexing: Optional[Union[Tuple[Union[str, int], ...],
-                                               str, int]] = None) -> int:
+                      indexing: Optional[dict] = None) -> int:
         assert self._mode == self.WRITING_MODE
 
         artifact = self._get_artifact(artifact_name)
@@ -72,7 +70,7 @@ class Storage:
     def read_records(self, artifact_name: str,
                      record_indices: Optional[Union[int, Tuple[int, ...],
                                                     slice]] = None,
-                     indexing: Optional[IndexArgType] = None) -> Iterator:
+                     indexing: Optional[dict] = None) -> Iterator:
         assert self._mode == self.READING_MODE
 
         artifact = self._get_artifact(artifact_name)
@@ -83,7 +81,7 @@ class Storage:
         return artifact[record_indices]
 
     def get_records_num(self, artifact_name: str,
-                        indexing: Optional[IndexArgType] = None) -> int:
+                        indexing: Optional[dict] = None) -> int:
         artifact = self._get_artifact(artifact_name)
         return artifact.get_records_num(indexing)
 
@@ -108,8 +106,8 @@ class Storage:
                       ) -> Union[Writer, ReaderIterator]:
         artifact = self._artifacts.get(artifact_name)
         if artifact is None:
-            raise ValueError('artifact {} is not in ' +
-                             'storage'.format(artifact_name))
+            raise ValueError(('artifact {} is not in ' +
+                              'storage'.format(artifact_name)))
         return artifact
 
     def _get_storage_path(self) -> str:

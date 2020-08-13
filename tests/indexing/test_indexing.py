@@ -15,30 +15,40 @@ class TestIndexing(unittest.TestCase):
             writer = Writer(path, compression=None)
             for index in range(1000):
                 writer.append_record(str(index).encode(),
-                                     index=('train', 'domain'))
+                                     index={'subset': 'train',
+                                            'subtask': 'domain'})
             for index in range(500):
                 writer.append_record(str(index).encode(),
-                                     index=('val', 'domain'))
+                                     index={'subset': 'val',
+                                            'subtask': 'domain'})
             writer.close()
 
             writer = Writer(path, compression=None)
             for index in range(100):
                 writer.append_record(str(index).encode(),
-                                     index=('train', 'domain'))
+                                     index={'subset': 'train',
+                                            'subtask': 'domain'})
             for index in range(100):
                 writer.append_record(str(index).encode(),
-                                     index=('val', 'domain'))
+                                     index={'subset': 'val',
+                                            'subtask': 'domain'})
             writer.close()
 
             reader = Reader(path)
             for index in range(1000):
-                assert index == int(reader.get(index, ('train', 'domain')))
+                assert index == int(reader.get(index, {'subset': 'train',
+                                                       'subtask': 'domain'}))
             for index in range(1000, 1100):
-                assert index - 1000 == int(reader.get(index, ('train', 'domain')))
+                assert index - 1000 == int(reader.get(index,
+                                                      {'subset': 'train',
+                                                       'subtask': 'domain'}))
             for index in range(500):
-                assert index == int(reader.get(index, ('val', 'domain')))
+                assert index == int(reader.get(index, {'subset': 'val',
+                                                       'subtask': 'domain'}))
             for index in range(500, 600):
-                assert index - 500 == int(reader.get(index, ('val', 'domain')))
+                assert index - 500 == int(reader.get(index,
+                                                     {'subset': 'val',
+                                                      'subtask': 'domain'}))
             reader.close()
 
     def test_iterator_int(self):
@@ -48,27 +58,33 @@ class TestIndexing(unittest.TestCase):
             writer = Writer(path, compression=None)
             for index in range(1000):
                 writer.append_record(str(index).encode(),
-                                     index=('train', 'domain'))
+                                     index={'subset': 'train',
+                                            'subtask': 'domain'})
             for index in range(500):
                 writer.append_record(str(index).encode(),
-                                     index=('val', 'domain'))
+                                     index={'subset': 'val',
+                                            'subtask': 'domain'})
             for index in range(100):
                 writer.append_record(str(index).encode(),
-                                     index=('train', 'domain'))
+                                     index={'subset': 'train',
+                                            'subtask': 'domain'})
             for index in range(100):
                 writer.append_record(str(index).encode(),
-                                     index=('val', 'domain'))
+                                     index={'subset': 'val',
+                                            'subtask': 'domain'})
             writer.close()
 
             reader = ReaderIterator(path)
 
-            reader.apply_index(('train', 'domain'))
+            reader.apply_index({'subset': 'train',
+                                'subtask': 'domain'})
             for i, record in enumerate(reader[0:1000]):
                 assert i == int(record)
             for i, record in enumerate(reader[1000:1100]):
                 assert i == int(record)
 
-            reader.apply_index(('val', 'domain'))
+            reader.apply_index({'subset': 'val',
+                                'subtask': 'domain'})
             for i, record in enumerate(reader[0:500]):
                 assert i == int(record)
             for i, record in enumerate(reader[500:600]):
@@ -87,13 +103,17 @@ class TestIndexing(unittest.TestCase):
             storage_writer.open('loss')
 
             for i in range(1000):
-                storage_writer.append_record('loss', str(i).encode(), 'train')
+                storage_writer.append_record('loss', str(i).encode(),
+                                             {'subset': 'train'})
             for i in range(100):
-                storage_writer.append_record('loss', str(i+100).encode(), 'val')
+                storage_writer.append_record('loss', str(i+100).encode(),
+                                             {'subset': 'val'})
             for i in range(100):
-                storage_writer.append_record('loss', str(i*5).encode(), 'train')
+                storage_writer.append_record('loss', str(i*5).encode(),
+                                             {'subset': 'train'})
             for i in range(100):
-                storage_writer.append_record('loss', str(i).encode(), 'val')
+                storage_writer.append_record('loss', str(i).encode(),
+                                             {'subset': 'val'})
 
             storage_writer.close()
             del storage_writer
@@ -102,24 +122,26 @@ class TestIndexing(unittest.TestCase):
             storage_reader.open('loss')
 
             assert storage_reader.get_records_num('loss') == 1300
-            assert storage_reader.get_records_num('loss', 'train') == 1100
-            assert storage_reader.get_records_num('loss', 'val') == 200
+            assert storage_reader.get_records_num('loss',
+                                                  {'subset': 'train'}) == 1100
+            assert storage_reader.get_records_num('loss',
+                                                  {'subset': 'val'}) == 200
 
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(0, 1000),
-                                                'train')):
+                                                {'subset': 'train'})):
                 assert i == int(record.decode())
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(1000, 1100),
-                                                'train')):
+                                                {'subset': 'train'})):
                 assert i * 5 == int(record.decode())
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(0, 100),
-                                                'val')):
+                                                {'subset': 'val'})):
                 assert i + 100 == int(record.decode())
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(100, 200),
-                                                'val')):
+                                                {'subset': 'val'})):
                 assert i == int(record.decode())
 
             storage_reader.close()
@@ -133,39 +155,45 @@ class TestIndexing(unittest.TestCase):
             for i in range(10):
                 storage_writer.append_record('loss', str(i).encode())
             for i in range(10):
-                storage_writer.append_record('loss', str(i).encode(), 'train')
+                storage_writer.append_record('loss', str(i).encode(),
+                                             {'subset:': 'train'})
             for i in range(10):
-                storage_writer.append_record('loss', str(i+100).encode(), 'val')
+                storage_writer.append_record('loss', str(i+100).encode(),
+                                             {'subset': 'val'})
             for i in range(10):
-                storage_writer.append_record('loss', str(i*5).encode(), 'train')
+                storage_writer.append_record('loss', str(i*5).encode(),
+                                             {'subset:': 'train'})
             for i in range(10):
-                storage_writer.append_record('loss', str(i).encode(), 'val')
+                storage_writer.append_record('loss', str(i).encode(),
+                                             {'subset': 'val'})
             storage_writer.flush()
 
             storage_reader = Storage(temp_dir, 'r')
             storage_reader.open('loss', uncommitted_bucket_visible=True)
 
-            assert storage_reader.get_records_num('loss', 'train') == 20
-            assert storage_reader.get_records_num('loss', 'val') == 20
+            assert storage_reader.get_records_num('loss',
+                                                  {'subset:': 'train'}) == 20
+            assert storage_reader.get_records_num('loss',
+                                                  {'subset': 'val'}) == 20
 
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(0, 10))):
                 assert i == int(record.decode())
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(0, 10),
-                                                'train')):
+                                                {'subset:': 'train'})):
                 assert i == int(record.decode())
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(10, 20),
-                                                'train')):
+                                                {'subset:': 'train'})):
                 assert i * 5 == int(record.decode())
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(0, 10),
-                                                'val')):
+                                                {'subset': 'val'})):
                 assert i + 100 == int(record.decode())
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(10, 20),
-                                                'val')):
+                                                {'subset': 'val'})):
                 assert i == int(record.decode())
 
             storage_writer.close()
@@ -180,16 +208,20 @@ class TestIndexing(unittest.TestCase):
             storage_writer.open('loss')
 
             for i in range(10):
-                storage_writer.append_record('loss', str(i).encode(), 'train')
+                storage_writer.append_record('loss', str(i).encode(),
+                                             {'subset:': 'train'})
             for i in range(10):
-                storage_writer.append_record('loss', str(i*10).encode(), 'val')
+                storage_writer.append_record('loss', str(i*10).encode(),
+                                             {'subset': 'val'})
 
             storage_reader = Storage(temp_dir, 'r')
             storage_reader.open('loss', uncommitted_bucket_visible=False)
 
             assert storage_reader.get_records_num('loss') == 0
-            assert storage_reader.get_records_num('loss', 'train') == 0
-            assert storage_reader.get_records_num('loss', 'val') == 0
+            assert storage_reader.get_records_num('loss',
+                                                  {'subset:': 'train'}) == 0
+            assert storage_reader.get_records_num('loss',
+                                                  {'subset': 'val'}) == 0
 
             storage_reader.close()
             del storage_reader

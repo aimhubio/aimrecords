@@ -26,7 +26,9 @@ except FileNotFoundError:
     LONG_DESCRIPTION = DESCRIPTION
 
 # What packages are required for this module to be executed?
-REQUIRED = []
+REQUIRED = [
+    'base58==2.0.1',
+]
 
 
 class UploadCommand(Command):

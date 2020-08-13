@@ -26,7 +26,6 @@ from aimrecords.record_storage.utils import (
     current_bucket_fname,
     data_version_compatibility,
 )
-from aimrecords.indexing.types import IndexArgType
 from aimrecords.indexing.index_key import IndexKey
 
 
@@ -71,7 +70,7 @@ class Reader(object):
         self.indexes: Dict[IndexKey, IndexReader] = {}
         self._iter = None
 
-    def get_records_num(self, indexing: Optional[IndexArgType] = None) -> int:
+    def get_records_num(self, indexing: Optional[dict] = None) -> int:
         if indexing is None:
             if self.uncommitted_bucket_visible:
                 return self.all_records_num
@@ -87,7 +86,7 @@ class Reader(object):
                 return index_meta.get('indexed_records_num') or 0
 
     def get(self, index: int,
-            indexing: Optional[IndexArgType] = None) -> bytes:
+            indexing: Optional[dict] = None) -> bytes:
         if indexing is not None:
             index = self._get_index(indexing).get(index)
 
@@ -136,7 +135,7 @@ class Reader(object):
 
         return 0
 
-    def _get_index(self, indexing: IndexArgType) -> IndexReader:
+    def _get_index(self, indexing: dict) -> IndexReader:
         index_key = IndexKey(indexing)
         if index_key not in self.indexes:
             self.indexes[index_key] = IndexReader(self.path, index_key, 'rb')
@@ -262,5 +261,5 @@ class ReaderIterator(Reader, Iterator):
             self._iter = None
             raise StopIteration
 
-    def apply_index(self, index: IndexArgType):
+    def apply_index(self, index: dict):
         self.applied_index = index
