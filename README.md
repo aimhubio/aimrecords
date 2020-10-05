@@ -2,7 +2,7 @@
 
 ![GitHub Top Language](https://img.shields.io/github/languages/top/aimhubio/aimrecords)
 [![PyPI Package](https://img.shields.io/pypi/v/aimrecords?color=yellow)](https://pypi.org/project/aimrecords/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
 Library to effectively store the tracked experiment logs.
