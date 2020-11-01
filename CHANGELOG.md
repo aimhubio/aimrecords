@@ -1,5 +1,6 @@
 # Changelog
 
+## 0.0.5 Nov 1 2020
 - Resolve compatibility issues with python 3.5.0 (gorarakelyan)
 
 ## 0.0.4 Aug 13 2020
