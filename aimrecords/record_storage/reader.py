@@ -67,7 +67,7 @@ class Reader(object):
         self.record_index_to_offset_list = \
             self._get_record_index_to_offset_list()
 
-        self.indexes: Dict[IndexKey, IndexReader] = {}
+        self.indexes = {}  # type: Dict[IndexKey, IndexReader]
         self._iter = None
 
     def get_records_num(self, indexing: Optional[dict] = None) -> int:

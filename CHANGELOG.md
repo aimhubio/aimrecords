@@ -1,5 +1,7 @@
 # Changelog
 
+- Resolve compatibility issues with python 3.5.0 (gorarakelyan)
+
 ## 0.0.4 Aug 13 2020
 - Change offset index type to dictionary (gorarakelyan)
 - Enable offset indexing mechanism for fast retrieval (gorarakelyan)
