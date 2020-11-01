@@ -7,7 +7,7 @@
 
 Library to effectively store the tracked experiment logs.
 
-See the documentation [here](docs/index.md).
+See the documentation [here](docs/README.md).
 
 ## Getting Started
 
