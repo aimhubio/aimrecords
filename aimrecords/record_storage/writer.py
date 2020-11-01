@@ -90,7 +90,7 @@ class Writer(object):
 
         self.file_open_mode = file_open_mode
 
-        self.indexes: Dict[IndexKey, IndexWriter] = {}
+        self.indexes = {}  # type: Dict[IndexKey, IndexWriter]
 
     def append_record(self, data: bytes,
                       index: Optional[dict] = None):

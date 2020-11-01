@@ -13,7 +13,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 NAME = 'aimrecords'
 DESCRIPTION = 'A record-oriented data format which utilizes Protocol Buffers'
 VERSION = __version__
-REQUIRES_PYTHON = '>=3.5.2'
+REQUIRES_PYTHON = '>=3.5.0'
 
 # Get packages
 packages = find_packages(exclude=('tests',))
