@@ -26,9 +26,16 @@ from aimrecords.record_storage.utils import (
     get_record_offsets_fname,
     current_bucket_fname,
     data_version_compatibility,
+    count_records_num_from_disk,
+    count_buckets_num_from_disk,
+    get_indices_keys,
 )
 from aimrecords.indexing.index_key import IndexKey
 from aimrecords.indexing.writer import IndexWriter
+from aimrecords.indexing.utils import (
+    count_records_num_from_index,
+    main_index_file_exists,
+)
 
 
 class Writer(object):
@@ -46,27 +53,7 @@ class Writer(object):
         self.path = path
         self.rewrite = rewrite
 
-        if self.rewrite or not metadata_exists(self.path):
-            self.data_version = DATA_VERSION
-            self.compression = compression
-            self.data_chunks_num = 0
-            self.buckets_num = 0
-            self.records_num = 0
-            self.indices_meta = {}
-        else:
-            meta = read_metadata(self.path)
-            self.data_version = meta.get('data_version')
-            data_version_compatibility(self.data_version, DATA_VERSION)
-
-            self.data_chunks_num = meta.get('data_chunks_num')
-            self.buckets_num = meta.get(BUCKETS_NUM)
-            self.records_num = meta.get(RECORDS_NUM)
-            self.compression = meta.get('compression')
-            self.indices_meta = meta.get('indices') or {}
-            if self.compression != compression:
-                raise ValueError('already applied {} compression for ' +
-                                 '{} artifact'.format(self.compression,
-                                                      self.path))
+        self.indexes = {}  # type: Dict[IndexKey, IndexWriter]
 
         if self.rewrite and self.exists():
             rmtree(self.path)
@@ -75,6 +62,68 @@ class Writer(object):
             os.makedirs(self.path)
 
         file_open_mode = 'wb' if self.rewrite else 'ab'
+        self.file_open_mode = file_open_mode
+
+        if self.rewrite:
+            self.data_version = DATA_VERSION
+            self.compression = compression
+            self.data_chunks_num = 0
+            self.buckets_num = 0
+            self.records_num = 0
+            self.indices_meta = {}
+        else:
+            if metadata_exists(self.path):
+                # Restore information from metadata file
+                meta = read_metadata(self.path)
+
+                # Get data chunks number from meta file,
+                # because only one data chunk is supported currently
+                self.data_chunks_num = meta.get('data_chunks_num')
+
+                # Check data format version compatibility
+                self.data_version = meta.get('data_version')
+                data_version_compatibility(self.data_version, DATA_VERSION)
+
+                # Check whether compression algorithms match
+                self.compression = meta.get('compression')
+                if self.compression != compression:
+                    raise ValueError('already applied {} compression for ' +
+                                     '{} artifact'.format(self.compression,
+                                                          self.path))
+
+                # Get last indices meta information
+                self.indices_meta = meta.get('indices') or {}
+            else:
+                self.data_version = DATA_VERSION
+                self.compression = compression
+                self.data_chunks_num = 0
+                self.indices_meta = {}
+                self.save_metadata(verbose=False)
+
+            # Restore all other info(records num, buckets num etc) from
+            # file system to recover previous state
+            self.records_num = count_records_num_from_disk(self.path)
+            self.buckets_num = count_buckets_num_from_disk(self.path)
+
+            # Restore indices meta info
+            indices_keys = get_indices_keys(self.path)
+            for index_key in indices_keys:
+                index_key_hash = str(index_key)
+                index_records_num = count_records_num_from_index(self.path,
+                                                                 index_key_hash)
+
+                self.indices_meta.setdefault(index_key_hash, {})
+                self.indices_meta[index_key_hash]['indexed_records_num'] = \
+                    index_records_num
+                if 'keys' not in self.indices_meta[index_key_hash].keys():
+                    self.indices_meta[index_key_hash]['keys'] = index_key.index
+            # Restore default index info
+            if main_index_file_exists(self.path):
+                self.indices_meta[''] = {
+                    'indexed_records_num': count_records_num_from_index(
+                        self.path, ''),
+                    'keys': {},
+                }
 
         (
             self.record_offsets_file,
@@ -87,10 +136,6 @@ class Writer(object):
             open(get_data_fname(self.path), file_open_mode),
             open(current_bucket_fname(self.path), file_open_mode),
         )
-
-        self.file_open_mode = file_open_mode
-
-        self.indexes = {}  # type: Dict[IndexKey, IndexWriter]
 
     def append_record(self, data: bytes,
                       index: Optional[dict] = None):
@@ -117,6 +162,7 @@ class Writer(object):
         if index_key not in self.indexes:
             self.indexes[index_key] = IndexWriter(self.path, index_key,
                                                   self.file_open_mode)
+            self.save_metadata(verbose=False)
 
         index_inst = self.indexes[index_key]
         index_inst.register_record(self.records_num)
@@ -128,25 +174,30 @@ class Writer(object):
         for index in self.indexes.values():
             index.flush()
 
-    def save_metadata(self):
+    def save_metadata(self, verbose=True):
         metadata = {
             'data_version': self.data_version,
             'compression': self.compression,
             'data_chunks_num': self.data_chunks_num,
-            BUCKETS_NUM: self.buckets_num,
-            RECORDS_NUM: self.records_num,
-            'record_offsets_bsize': self.record_offsets_file.tell(),
-            'bucket_offsets_bsize': self.bucket_offsets_file.tell(),
-            'data_file_bsize': [self.current_data_file.tell()],
             'indices': self.indices_meta,
         }
+
+        if verbose:
+            records_meta = {
+                BUCKETS_NUM: self.buckets_num,
+                RECORDS_NUM: self.records_num,
+                'record_offsets_bsize': self.record_offsets_file.tell(),
+                'bucket_offsets_bsize': self.bucket_offsets_file.tell(),
+                'data_file_bsize': [self.current_data_file.tell()],
+            }
+            metadata = {**metadata, **records_meta}
 
         for index_key, index in self.indexes.items():
             metadata['indices'].setdefault(index.name, {})
             idx_meta = metadata['indices'][index.name]
             idx_meta.setdefault('indexed_records_num', 0)
             idx_meta.setdefault('keys', index_key.index)
-            if index.num_appended:
+            if verbose and index.num_appended:
                 idx_meta['indexed_records_num'] = index.indexed_records_num()
 
         write_metadata(self.path, metadata)

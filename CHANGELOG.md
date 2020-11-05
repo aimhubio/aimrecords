@@ -1,5 +1,7 @@
 # Changelog
 
+- Add ability to continue writing to uncommitted artifacts (gorarakelyan)
+
 ## 0.0.5 Nov 1 2020
 - Resolve compatibility issues with python 3.5.0 (gorarakelyan)
 
