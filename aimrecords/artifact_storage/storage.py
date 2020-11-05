@@ -30,9 +30,6 @@ class Storage:
     def __iter__(self):
         return iter(self._artifacts)
 
-    def __del__(self):
-        self.close()
-
     def open(self, artifact_name: str, *args, **kwargs):
         assert artifact_name not in self._artifacts
         artifact_path = self._get_artifact_path(artifact_name)
@@ -102,12 +99,20 @@ class Storage:
                 artifact_inst.close()
                 del self._artifacts[artifact_name]
 
+    def finalize_dangling_artifacts(self):
+        assert self._mode == self.WRITING_MODE
+
+        artifact_names = os.listdir(self.storage_path)
+        for artifact_name in artifact_names:
+            self.open(artifact_name)
+            self.close(artifact_name)
+
     def _get_artifact(self, artifact_name: str
                       ) -> Union[Writer, ReaderIterator]:
         artifact = self._artifacts.get(artifact_name)
         if artifact is None:
             raise ValueError(('artifact {} is not in ' +
-                              'storage'.format(artifact_name)))
+                              'storage').format(artifact_name))
         return artifact
 
     def _get_storage_path(self) -> str:
