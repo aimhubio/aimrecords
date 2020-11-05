@@ -153,8 +153,6 @@ class TestIndexing(unittest.TestCase):
             storage_writer.open('loss')
 
             for i in range(10):
-                storage_writer.append_record('loss', str(i).encode())
-            for i in range(10):
                 storage_writer.append_record('loss', str(i).encode(),
                                              {'subset:': 'train'})
             for i in range(10):
@@ -166,19 +164,25 @@ class TestIndexing(unittest.TestCase):
             for i in range(10):
                 storage_writer.append_record('loss', str(i).encode(),
                                              {'subset': 'val'})
+            for i in range(10):
+                storage_writer.append_record('loss', str(i*12).encode(), {})
+            for i in range(10):
+                storage_writer.append_record('loss', str(i*22).encode())
             storage_writer.flush()
 
             storage_reader = Storage(temp_dir, 'r')
             storage_reader.open('loss', uncommitted_bucket_visible=True)
 
+            assert storage_reader.get_records_num('loss') == 60
+            assert storage_reader.get_records_num('loss', {}) == 10
             assert storage_reader.get_records_num('loss',
                                                   {'subset:': 'train'}) == 20
             assert storage_reader.get_records_num('loss',
                                                   {'subset': 'val'}) == 20
 
             for i, record in enumerate(
-                    storage_reader.read_records('loss', slice(0, 10))):
-                assert i == int(record.decode())
+                    storage_reader.read_records('loss', slice(0, 10), {})):
+                assert i * 12 == int(record.decode())
             for i, record in enumerate(
                     storage_reader.read_records('loss', slice(0, 10),
                                                 {'subset:': 'train'})):
