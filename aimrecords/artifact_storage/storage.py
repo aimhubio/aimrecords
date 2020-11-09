@@ -4,6 +4,10 @@ from collections import Iterator
 
 from aimrecords.record_storage.writer import Writer
 from aimrecords.record_storage.reader import ReaderIterator
+from aimrecords.record_storage.utils import (
+    metadata_exists,
+    read_metadata,
+)
 from aimrecords.artifact_storage.consts import (
     STORAGE_DIR_NAME,
 )
@@ -106,6 +110,32 @@ class Storage:
         for artifact_name in artifact_names:
             self.open(artifact_name)
             self.close(artifact_name)
+
+    def get_artifacts_names(self, include_indices=True):
+        info = {}
+        artifact_names = os.listdir(self.storage_path)
+        for artifact_name in artifact_names:
+            if not include_indices:
+                info[artifact_name] = True
+                continue
+
+            info[artifact_name] = []
+            artifact_path = os.path.join(self.storage_path, artifact_name)
+
+            if not metadata_exists(artifact_path):
+                continue
+
+            metadata = read_metadata(artifact_path)
+            if metadata.get('indices') is None:
+                continue
+
+            for index_item in metadata['indices'].values():
+                index_keys = index_item.get('keys')
+                if index_keys is None:
+                    continue
+                info[artifact_name].append(index_keys)
+
+        return info
 
     def _get_artifact(self, artifact_name: str
                       ) -> Union[Writer, ReaderIterator]:

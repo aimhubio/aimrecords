@@ -43,7 +43,10 @@ def write_metadata(path: str, metadata: dict):
 def read_metadata(path: str) -> dict:
     if metadata_exists(path):
         with open(get_metadata_fname(path), 'r') as f_in:
-            return json.load(f_in)
+            try:
+                return json.load(f_in)
+            except:
+                pass
     return {}
 
 
