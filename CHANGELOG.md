@@ -1,5 +1,6 @@
 # Changelog
 
+## 0.0.7 Nov 9 2020
 - Add ability to fetch artifacts names and indices (gorarakelyan)
 
 ## 0.0.6 Nov 5 2020
