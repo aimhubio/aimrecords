@@ -1,6 +1,6 @@
 import os
 from typing import Union, Tuple, Optional
-from collections import Iterator
+from collections.abc import Iterator
 
 from aimrecords.record_storage.writer import Writer
 from aimrecords.record_storage.reader import ReaderIterator

@@ -2,7 +2,8 @@ import os
 import io
 import gzip
 from typing import Union, Tuple, List, Optional, Dict
-from collections import namedtuple, Iterator
+from collections import namedtuple
+from collections.abc import Iterator
 
 from aimrecords.indexing.reader import Reader as IndexReader
 from aimrecords.record_storage.consts import (
